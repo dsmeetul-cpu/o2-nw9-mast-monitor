@@ -1,1 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
 
+<meta name="viewport"
+      content="width=device-width, initial-scale=1.0">
+
+<title>O2 NW9 0RY Network Monitor</title>
+
+<style>
+body {
+    font-family: Arial, sans-serif;
+    background: #f4f6f8;
+    margin: 0;
+    padding: 30px;
+    color: #222;
+}
+
+.container {
+    max-width: 1200px;
+    margin: auto;
+}
+
+h1 {
+    margin-bottom: 5px;
+}
+
+.subtitle {
+    color: #666;
+    margin-bottom: 25px;
+}
+
+.cards {
+    display: grid;
+    grid-template-columns:
+        repeat(auto-fit, minmax(200px, 1fr));
+
+    gap: 15px;
+}
+
+.card {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+
+.card h3 {
+    margin-top: 0;
+    color: #666;
+    font-size: 14px;
+}
+
+.card strong {
+    font-size: 28px;
+}
+
+.issue {
+    color: #c62828;
+}
+
+.ok {
+    color: #2e7d32;
+}
+
+.info {
+    margin-top: 25px;
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+th,
+td {
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+    text-align: left;
+}
+
+th {
+    background: #eee;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>O2 NW9 0RY Network Monitor</h1>
+
+<div class="subtitle">
+Automated evidence collection for O2 complaint
+C-1308267357
+</div>
+
+<div class="cards">
+
+<div class="card">
+<h3>POSTCODE</h3>
+<strong>NW9 0RY</strong>
+</div>
+
+<div class="card">
+<h3>TOTAL CHECKS</h3>
+<strong id="total">—</strong>
+</div>
+
+<div class="card">
+<h3>ISSUE CHECKS</h3>
+<strong id="issues" class="issue">—</strong>
+</div>
+
+<div class="card">
+<h3>ISSUE RATE</h3>
+<strong id="rate">—</strong>
+</div>
+
+<div class="card">
+<h3>LATEST STATUS</h3>
+<strong id="latest">—</strong>
+</div>
+
+</div>
+
+<div class="info">
+
+<h2>Latest Checks</h2>
+
+<table>
+
+<thead>
+<tr>
+<th>Date & Time</th>
+<th>Status</th>
+<th>Result</th>
+<th>Screenshot</th>
+</tr>
+</thead>
+
+<tbody id="results">
+<tr>
+<td colspan="4">Loading...</td>
+</tr>
+</tbody>
+
+</table>
+
+</div>
+
+</div>
+
+<script>
+
+async function loadData() {
+
+    const response =
+        await fetch("../data/o2-nw9-0ry-monitor.csv");
+
+    const text =
+        await response.text();
+
+    const lines =
+        text.trim().split(/\r?\n/);
+
+    if (lines.length <= 1) {
+        return;
+    }
+
+    const headers =
+        parseCSV(lines[0]);
+
+    const rows =
+        lines.slice(1).map(parseCSV);
+
+    const records =
+        rows.map(row => {
+
+            const obj = {};
+
+            headers.forEach((header, i) => {
+                obj[header] = row[i] || "";
+            });
+
+            return obj;
+
+        });
+
+    const issues =
+        records.filter(
+            r => r["O2 Status"] === "ISSUE"
+        );
+
+    document.getElementById("total")
+        .textContent = records.length;
+
+    document.getElementById("issues")
+        .textContent = issues.length;
+
+    document.getElementById("rate")
+        .textContent =
+        records.length
+            ? ((issues.length / records.length) * 100)
+                .toFixed(1) + "%"
+            : "0%";
+
+    const latest =
+        records[records.length - 1];
+
+    document.getElementById("latest")
+        .textContent =
+        latest["O2 Status"];
+
+    const tbody =
+        document.getElementById("results");
+
+    tbody.innerHTML = "";
+
+    records
+        .slice(-25)
+        .reverse()
+        .forEach(record => {
+
+            const tr =
+                document.createElement("tr");
+
+            const screenshot =
+                record["Screenshot"];
+
+            tr.innerHTML = `
+                <td>${escapeHtml(record["Date & Time"])}</td>
+                <td>${escapeHtml(record["O2 Status"])}</td>
+                <td>${escapeHtml(record["Check Result"])}</td>
+                <td>
+                    <a href="../${escapeHtml(screenshot)}">
+                    Evidence
+                    </a>
+                </td>
+            `;
+
+            tbody.appendChild(tr);
+
+        });
+}
+
+function parseCSV(line) {
+
+    const result = [];
+
+    let current = "";
+
+    let quoted = false;
+
+    for (
+        let i = 0;
+        i < line.length;
+        i++
+    ) {
+
+        const char = line[i];
+
+        if (char === '"') {
+
+            if (
+                quoted &&
+                line[i + 1] === '"'
+            ) {
+
+                current += '"';
+
+                i++;
+
+            } else {
+
+                quoted = !quoted;
+
+            }
+
+        } else if (
+            char === "," &&
+            !quoted
+        ) {
+
+            result.push(current);
+
+            current = "";
+
+        } else {
+
+            current += char;
+
+        }
+
+    }
+
+    result.push(current);
+
+    return result;
+}
+
+function escapeHtml(value) {
+
+    return value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+}
+
+loadData();
+
+</script>
+
+</body>
+</html>
