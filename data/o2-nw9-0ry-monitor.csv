@@ -1,2 +1,3 @@
 Date,Time,Date & Time,Postcode,O2 Status,O2 Message,Expected Resolution,Complaint Reference,Source URL,Screenshot,Check Result,Status Changed?,Previous Status,Notes
 14/08/2026,16:19:51,"14/08/2026, 16:19:51",NW9 0RY,UNKNOWN,MONITORING ERROR: Could not find O2 postcode input.,,C-1308267357,https://status.o2.co.uk/,evidence/2026-08-14_16-19-51_NW9-0RY.png,FAILED,YES,,
+14/08/2026,18:04:44,"14/08/2026, 18:04:44",NW9 0RY,UNKNOWN,MONITORING ERROR: Could not find O2 postcode input.,,C-1308267357,https://status.o2.co.uk/,evidence/2026-08-14_18-04-44_NW9-0RY.png,FAILED,NO,UNKNOWN,
