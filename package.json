@@ -1,6 +1,7 @@
 {
   "name": "o2-nw9-mast-monitor",
   "version": "1.0.0",
+  "description": "Automated O2 network status monitoring for NW9 0RY",
   "private": true,
   "type": "module",
   "scripts": {
