@@ -1,1 +1,13 @@
-
+{
+  "name": "o2-nw9-mast-monitor",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "monitor": "node src/monitor.js"
+  },
+  "dependencies": {
+    "playwright": "^1.55.0",
+    "xlsx": "^0.18.5"
+  }
+}
