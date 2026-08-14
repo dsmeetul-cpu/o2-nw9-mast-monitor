@@ -1,1 +1,52 @@
+name: O2 NW9 0RY Network Monitor
 
+on:
+  workflow_dispatch:
+
+  schedule:
+    # Every hour at 5 minutes past the hour.
+    # Europe/London automatically handles BST/GMT.
+    - cron: "5 * * * *"
+      timezone: "Europe/London"
+
+permissions:
+  contents: write
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run O2 network check
+        run: npm run monitor
+
+      - name: Commit evidence
+        run: |
+          git config user.name "O2 Mast Monitor"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add data/ evidence/
+
+          if git diff --cached --quiet; then
+            echo "No new evidence to commit."
+          else
+            git commit -m "O2 NW9 0RY network check $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git push
+          fi
