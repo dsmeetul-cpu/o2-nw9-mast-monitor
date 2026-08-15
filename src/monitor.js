@@ -25,7 +25,11 @@ const xlsxFile = path.join(
   "O2-NW9-0RY-Evidence.xlsx"
 );
 
+
 function londonTimestamp() {
+
+  const now = new Date();
+
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London",
     year: "numeric",
@@ -35,31 +39,1430 @@ function londonTimestamp() {
     minute: "2-digit",
     second: "2-digit",
     hour12: false
-  }).format(new Date());
+  }).format(now);
+
 }
+
 
 function safeFileTimestamp() {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/London",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false
-  }).formatToParts(new Date());
+
+  const now = new Date();
+
+  const parts =
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/London",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false
+    }).formatToParts(now);
 
   const get = name =>
-    parts.find(p => p.type === name)?.value || "";
+    parts.find(
+      p => p.type === name
+    )?.value;
 
   return `${get("year")}-${get("month")}-${get("day")}_${get("hour")}-${get("minute")}-${get("second")}`;
+
 }
 
+
 function csvEscape(value) {
-  if (value === null || value === undefined) {
+
+  if (
+    value === null ||
+    value === undefined
+  ) {
     return "";
   }
+
+  const text =
+    String(value)
+      .replace(/\r?\n/g, " ");
+
+  if (/[",]/.test(text)) {
+
+    return `"${text.replace(
+      /"/g,
+      '""'
+    )}"`;
+
+  }
+
+  return text;
+
+}
+
+
+function readExistingCsv() {
+
+  if (!fs.existsSync(csvFile)) {
+    return [];
+  }
+
+  const text =
+    fs.readFileSync(
+      csvFile,
+      "utf8"
+    ).trim();
+
+  if (!text) {
+    return [];
+  }
+
+  const lines =
+    text.split(/\r?\n/);
+
+  const headers =
+    parseCSV(lines[0]);
+
+  return lines
+    .slice(1)
+    .map(line => {
+
+      const values =
+        parseCSV(line);
+
+      const row = {};
+
+      headers.forEach(
+        (header, index) => {
+
+          row[header] =
+            values[index] ?? "";
+
+        }
+      );
+
+      return row;
+
+    });
+
+}
+
+
+function parseCSV(line) {
+
+  const result = [];
+
+  let current = "";
+
+  let quoted = false;
+
+  for (
+    let i = 0;
+    i < line.length;
+    i++
+  ) {
+
+    const char =
+      line[i];
+
+    if (char === '"') {
+
+      if (
+        quoted &&
+        line[i + 1] === '"'
+      ) {
+
+        current += '"';
+
+        i++;
+
+      } else {
+
+        quoted =
+          !quoted;
+
+      }
+
+    }
+
+    else if (
+      char === "," &&
+      !quoted
+    ) {
+
+      result.push(current);
+
+      current = "";
+
+    }
+
+    else {
+
+      current += char;
+
+    }
+
+  }
+
+  result.push(current);
+
+  return result;
+
+}
+
+
+/*
+ * Find a postcode input.
+ *
+ * O2 may change the HTML, so we deliberately
+ * try several different selectors.
+ */
+async function findPostcodeInput(page) {
+
+  const selectors = [
+
+    'input[placeholder*="postcode" i]',
+
+    'input[aria-label*="postcode" i]',
+
+    'input[name*="postcode" i]',
+
+    'input[id*="postcode" i]',
+
+    'input[autocomplete="postal-code"]',
+
+    'input[inputmode="text"]',
+
+    'input[type="text"]'
+
+  ];
+
+
+  for (const selector of selectors) {
+
+    const locator =
+      page.locator(selector);
+
+
+    const count =
+      await locator.count();
+
+
+    console.log(
+      `Selector ${selector}: ${count} match(es)`
+    );
+
+
+    for (
+      let i = 0;
+      i < count;
+      i++
+    ) {
+
+      const candidate =
+        locator.nth(i);
+
+      try {
+
+        if (
+          await candidate.isVisible()
+        ) {
+
+          console.log(
+            `Using visible postcode candidate: ${selector} [${i}]`
+          );
+
+          return candidate;
+
+        }
+
+      } catch {
+
+        // Continue.
+
+      }
+
+    }
+
+  }
+
+
+  return null;
+
+}
+
+
+/*
+ * Find the most likely submit button.
+ */
+async function findSubmitButton(page) {
+
+  const selectors = [
+
+    'button:has-text("Check")',
+
+    'button:has-text("Search")',
+
+    'button:has-text("Submit")',
+
+    'button:has-text("Continue")',
+
+    'button:has-text("View")',
+
+    'input[type="submit"]',
+
+    'button'
+
+  ];
+
+
+  for (const selector of selectors) {
+
+    const locator =
+      page.locator(selector);
+
+
+    const count =
+      await locator.count();
+
+
+    console.log(
+      `Button selector ${selector}: ${count} match(es)`
+    );
+
+
+    for (
+      let i = 0;
+      i < count;
+      i++
+    ) {
+
+      const candidate =
+        locator.nth(i);
+
+
+      try {
+
+        if (
+          await candidate.isVisible()
+        ) {
+
+          const text =
+            await candidate.innerText()
+              .catch(() => "");
+
+
+          console.log(
+            `Using button: ${selector} [${i}] "${text}"`
+          );
+
+          return candidate;
+
+        }
+
+      } catch {
+
+        // Continue.
+
+      }
+
+    }
+
+  }
+
+
+  return null;
+
+}
+
+
+/*
+ * Print every input on the page.
+ *
+ * This is extremely useful if O2 changes
+ * the HTML again.
+ */
+async function diagnoseInputs(page) {
+
+  console.log(
+    "===== INPUT DIAGNOSTICS ====="
+  );
+
+  const inputs =
+    await page.locator("input").evaluateAll(
+      elements =>
+        elements.map(
+          (input, index) => ({
+
+            index,
+
+            type:
+              input.getAttribute("type"),
+
+            name:
+              input.getAttribute("name"),
+
+            id:
+              input.getAttribute("id"),
+
+            placeholder:
+              input.getAttribute(
+                "placeholder"
+              ),
+
+            ariaLabel:
+              input.getAttribute(
+                "aria-label"
+              ),
+
+            autocomplete:
+              input.getAttribute(
+                "autocomplete"
+              ),
+
+            value:
+              input.value,
+
+            visible:
+              !!(
+                input.offsetWidth ||
+                input.offsetHeight ||
+                input.getClientRects().length
+              )
+
+          })
+        )
+    );
+
+
+  console.log(
+    JSON.stringify(
+      inputs,
+      null,
+      2
+    )
+  );
+
+  console.log(
+    "===== END INPUT DIAGNOSTICS ====="
+  );
+
+}
+
+
+/*
+ * Find the O2 Network Issues link on
+ * the landing page.
+ */
+async function openNetworkIssuesChecker(page) {
+
+  console.log(
+    "Looking for O2 Network Issues checker..."
+  );
+
+
+  const links =
+    page.getByText(
+      "O2 Network Issues",
+      {
+        exact: true
+      }
+    );
+
+
+  if (
+    await links.count()
+  ) {
+
+    const link =
+      links.first();
+
+
+    if (
+      await link.isVisible()
+    ) {
+
+      console.log(
+        "Found O2 Network Issues link."
+      );
+
+
+      const href =
+        await link.getAttribute(
+          "href"
+        );
+
+
+      console.log(
+        `O2 Network Issues href: ${href}`
+      );
+
+
+      await link.click();
+
+
+      await page.waitForLoadState(
+        "domcontentloaded",
+        {
+          timeout: 30000
+        }
+      ).catch(() => {});
+
+
+      await page.waitForTimeout(
+        3000
+      );
+
+
+      console.log(
+        `After navigation URL: ${page.url()}`
+      );
+
+
+      return true;
+
+    }
+
+  }
+
+
+  /*
+   * Fallback: search all links for
+   * network/status wording.
+   */
+  const possibleLinks =
+    await page.locator("a").evaluateAll(
+      links =>
+        links.map(
+          link => ({
+
+            text:
+              (link.innerText || "")
+                .trim(),
+
+            href:
+              link.href
+
+          })
+        )
+        .filter(
+          x =>
+            /network|status|issue/i
+              .test(x.text)
+        )
+    );
+
+
+  console.log(
+    "Possible network links:"
+  );
+
+  console.log(
+    JSON.stringify(
+      possibleLinks,
+      null,
+      2
+    )
+  );
+
+
+  if (possibleLinks.length) {
+
+    const href =
+      possibleLinks[0].href;
+
+
+    if (href) {
+
+      console.log(
+        `Navigating to: ${href}`
+      );
+
+
+      await page.goto(
+        href,
+        {
+          waitUntil:
+            "domcontentloaded",
+          timeout: 60000
+        }
+      );
+
+
+      await page.waitForTimeout(
+        3000
+      );
+
+
+      return true;
+
+    }
+
+  }
+
+
+  return false;
+
+}
+
+
+/*
+ * Classify the result.
+ */
+function classifyStatus(text) {
+
+  const lower =
+    text.toLowerCase();
+
+
+  /*
+   * Strong outage wording.
+   */
+  const issuePatterns = [
+
+    "nearby phone mast",
+
+    "mast isn't working",
+
+    "mast isn’t working",
+
+    "mast is not working",
+
+    "isn't working as it should",
+
+    "isn’t working as it should",
+
+    "network issue",
+
+    "network problem",
+
+    "known issue",
+
+    "service issue",
+
+    "service problem",
+
+    "outage",
+
+    "fault",
+
+    "engineers will be on the case",
+
+    "engineer is on the case",
+
+    "service might come and go",
+
+    "maintenance"
+
+  ];
+
+
+  for (
+    const pattern of issuePatterns
+  ) {
+
+    if (
+      lower.includes(pattern)
+    ) {
+
+      return "ISSUE";
+
+    }
+
+  }
+
+
+  const okPatterns = [
+
+    "no known issues",
+
+    "no issues in your area",
+
+    "working normally",
+
+    "everything is working",
+
+    "there are no known issues"
+
+  ];
+
+
+  for (
+    const pattern of okPatterns
+  ) {
+
+    if (
+      lower.includes(pattern)
+    ) {
+
+      return "OK";
+
+    }
+
+  }
+
+
+  return "UNKNOWN";
+
+}
+
+
+async function main() {
+
+  const browser =
+    await chromium.launch({
+      headless: true
+    });
+
+
+  const context =
+    await browser.newContext({
+
+      locale: "en-GB",
+
+      timezoneId:
+        "Europe/London",
+
+      viewport: {
+
+        width: 1440,
+
+        height: 1400
+
+      }
+
+    });
+
+
+  const page =
+    await context.newPage();
+
+
+  const timestamp =
+    londonTimestamp();
+
+
+  const fileTimestamp =
+    safeFileTimestamp();
+
+
+  let status =
+    "UNKNOWN";
+
+
+  let message =
+    "";
+
+
+  let expectedResolution =
+    "";
+
+
+  let pageText =
+    "";
+
+
+  let checkResult =
+    "FAILED";
+
+
+  let screenshotName =
+    "";
+
+
+  try {
+
+    console.log(
+      "===== O2 MONITOR START ====="
+    );
+
+
+    console.log(
+      `Opening: ${O2_URL}`
+    );
+
+
+    await page.goto(
+      O2_URL,
+      {
+        waitUntil:
+          "domcontentloaded",
+
+        timeout:
+          60000
+      }
+    );
+
+
+    await page.waitForTimeout(
+      3000
+    );
+
+
+    console.log(
+      `Initial URL: ${page.url()}`
+    );
+
+
+    console.log(
+      `Initial title: ${await page.title()}`
+    );
+
+
+    /*
+     * First check whether the landing page
+     * itself contains a postcode field.
+     */
+    let postcodeInput =
+      await findPostcodeInput(page);
+
+
+    /*
+     * If it doesn't, follow the actual
+     * Network Issues checker.
+     */
+    if (!postcodeInput) {
+
+      console.log(
+        "No postcode input on landing page."
+      );
+
+
+      const navigated =
+        await openNetworkIssuesChecker(
+          page
+        );
+
+
+      if (!navigated) {
+
+        await diagnoseInputs(
+          page
+        );
+
+
+        throw new Error(
+          "Could not locate the O2 Network Issues checker."
+        );
+
+      }
+
+
+      postcodeInput =
+        await findPostcodeInput(
+          page
+        );
+
+    }
+
+
+    /*
+     * If still missing, produce diagnostics
+     * before failing.
+     */
+    if (!postcodeInput) {
+
+      await diagnoseInputs(
+        page
+      );
+
+
+      await page.screenshot({
+
+        path:
+          path.join(
+            evidenceDir,
+            `${fileTimestamp}_DIAGNOSTIC.png`
+          ),
+
+        fullPage:
+          true
+
+      });
+
+
+      throw new Error(
+        "Could not find O2 postcode input after opening the Network Issues checker."
+      );
+
+    }
+
+
+    /*
+     * ENTER POSTCODE.
+     */
+    console.log(
+      `Entering postcode: ${POSTCODE}`
+    );
+
+
+    await postcodeInput.fill(
+      POSTCODE
+    );
+
+
+    /*
+     * IMPORTANT:
+     *
+     * This screenshot proves that the
+     * monitor actually entered the postcode.
+     */
+    const enteredScreenshot =
+      `${fileTimestamp}_01_POSTCODE_ENTERED.png`;
+
+
+    await page.screenshot({
+
+      path:
+        path.join(
+          evidenceDir,
+          enteredScreenshot
+        ),
+
+      fullPage:
+        true
+
+    });
+
+
+    console.log(
+      `Postcode-entered screenshot: ${enteredScreenshot}`
+    );
+
+
+    /*
+     * Find submit button.
+     */
+    const submitButton =
+      await findSubmitButton(
+        page
+      );
+
+
+    if (submitButton) {
+
+      console.log(
+        "Submitting postcode..."
+      );
+
+
+      await submitButton.click();
+
+    } else {
+
+      console.log(
+        "No submit button found. Pressing Enter."
+      );
+
+
+      await postcodeInput.press(
+        "Enter"
+      );
+
+    }
+
+
+    /*
+     * Give O2 enough time to display
+     * the result.
+     */
+    await page.waitForTimeout(
+      8000
+    );
+
+
+    console.log(
+      `Result URL: ${page.url()}`
+    );
+
+
+    console.log(
+      `Result title: ${await page.title()}`
+    );
+
+
+    /*
+     * Capture the actual O2 result.
+     */
+    pageText =
+      await page.locator(
+        "body"
+      ).innerText();
+
+
+    /*
+     * Determine status.
+     */
+    status =
+      classifyStatus(
+        pageText
+      );
+
+
+    /*
+     * Clean message for CSV.
+     */
+    message =
+      pageText
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(
+          0,
+          5000
+        );
+
+
+    /*
+     * Try to extract expected resolution.
+     */
+    const resolutionMatch =
+      pageText.match(
+        /(?:expected|estimated|should|aim).*?(?:resolved|fixed).*?(\d{1,2}[:.]\d{2}|\d{1,2}\s?(?:am|pm)|\d{1,2}\/\d{1,2}\/\d{2,4})/i
+      );
+
+
+    if (resolutionMatch) {
+
+      expectedResolution =
+        resolutionMatch[0];
+
+    }
+
+
+    /*
+     * Final evidence screenshot.
+     *
+     * This is the important screenshot:
+     * postcode has been submitted and the
+     * O2 result is visible.
+     */
+    screenshotName =
+      `${fileTimestamp}_02_O2_RESULT.png`;
+
+
+    await page.screenshot({
+
+      path:
+        path.join(
+          evidenceDir,
+          screenshotName
+        ),
+
+      fullPage:
+        true
+
+    });
+
+
+    console.log(
+      `Result screenshot: ${screenshotName}`
+    );
+
+
+    /*
+     * A successful monitor run means we
+     * successfully interacted with O2.
+     *
+     * UNKNOWN can therefore still be a
+     * successful check.
+     */
+    checkResult =
+      "SUCCESS";
+
+
+    console.log(
+      `O2 Status: ${status}`
+    );
+
+
+  } catch (error) {
+
+    message =
+      `MONITORING ERROR: ${error.message}`;
+
+
+    checkResult =
+      "FAILED";
+
+
+    /*
+     * Always preserve a failure screenshot.
+     */
+    try {
+
+      screenshotName =
+        screenshotName ||
+        `${fileTimestamp}_FAILED.png`;
+
+
+      await page.screenshot({
+
+        path:
+          path.join(
+            evidenceDir,
+            screenshotName
+          ),
+
+        fullPage:
+          true
+
+      });
+
+    } catch {
+
+      // Ignore screenshot failure.
+
+    }
+
+
+    console.error(
+      message
+    );
+
+  }
+
+
+  /*
+   * Read previous records.
+   */
+  const existing =
+    readExistingCsv();
+
+
+  const previous =
+    existing.length
+      ? existing[
+          existing.length - 1
+        ]
+      : null;
+
+
+  const statusChanged =
+    !previous ||
+    previous["O2 Status"] !== status
+
+      ? "YES"
+
+      : "NO";
+
+
+  const record = {
+
+    "Date":
+      timestamp.split(",")[0],
+
+    "Time":
+      timestamp.split(",")[1]?.trim()
+      || timestamp,
+
+    "Date & Time":
+      timestamp,
+
+    "Postcode":
+      POSTCODE,
+
+    "O2 Status":
+      status,
+
+    "O2 Message":
+      message,
+
+    "Expected Resolution":
+      expectedResolution,
+
+    "Complaint Reference":
+      COMPLAINT_REFERENCE,
+
+    "Source URL":
+      page.url(),
+
+    "Screenshot":
+      screenshotName
+        ? `evidence/${screenshotName}`
+        : "",
+
+    "Check Result":
+      checkResult,
+
+    "Status Changed?":
+      statusChanged,
+
+    "Previous Status":
+      previous?.["O2 Status"]
+      || "",
+
+    "Notes":
+      checkResult === "SUCCESS"
+        ? "Postcode entered and O2 result captured."
+        : "Monitor failed before a valid O2 result was captured."
+
+  };
+
+
+  /*
+   * Write CSV.
+   */
+  const headers =
+    Object.keys(record);
+
+
+  if (
+    !fs.existsSync(csvFile)
+  ) {
+
+    fs.writeFileSync(
+
+      csvFile,
+
+      headers
+        .map(csvEscape)
+        .join(",") +
+        "\n",
+
+      "utf8"
+
+    );
+
+  }
+
+
+  fs.appendFileSync(
+
+    csvFile,
+
+    headers
+      .map(
+        h =>
+          csvEscape(
+            record[h]
+          )
+      )
+      .join(",") +
+      "\n",
+
+    "utf8"
+
+  );
+
+
+  /*
+   * Update Excel evidence file.
+   */
+  const allRecords =
+    [
+      ...existing,
+      record
+    ];
+
+
+  const worksheet =
+    XLSX.utils.json_to_sheet(
+      allRecords
+    );
+
+
+  worksheet["!cols"] = [
+
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 24 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 80 },
+    { wch: 30 },
+    { wch: 20 },
+    { wch: 55 },
+    { wch: 55 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 45 }
+
+  ];
+
+
+  const workbook =
+    XLSX.utils.book_new();
+
+
+  XLSX.utils.book_append_sheet(
+
+    workbook,
+
+    worksheet,
+
+    "O2 Mast Log"
+
+  );
+
+
+  const issueCount =
+    allRecords.filter(
+      x =>
+        x["O2 Status"] ===
+        "ISSUE"
+    ).length;
+
+
+  const okCount =
+    allRecords.filter(
+      x =>
+        x["O2 Status"] ===
+        "OK"
+    ).length;
+
+
+  const unknownCount =
+    allRecords.filter(
+      x =>
+        x["O2 Status"] ===
+        "UNKNOWN"
+    ).length;
+
+
+  const failedCount =
+    allRecords.filter(
+      x =>
+        x["Check Result"] ===
+        "FAILED"
+    ).length;
+
+
+  const summary =
+    XLSX.utils.aoa_to_sheet([
+
+      [
+        "O2 NW9 0RY NETWORK EVIDENCE"
+      ],
+
+      [],
+
+      [
+        "Postcode",
+        POSTCODE
+      ],
+
+      [
+        "Complaint Reference",
+        COMPLAINT_REFERENCE
+      ],
+
+      [
+        "Monitoring Source",
+        O2_URL
+      ],
+
+      [
+        "Total Checks",
+        allRecords.length
+      ],
+
+      [
+        "Issue Checks",
+        issueCount
+      ],
+
+      [
+        "OK Checks",
+        okCount
+      ],
+
+      [
+        "Unknown Checks",
+        unknownCount
+      ],
+
+      [
+        "Failed Checks",
+        failedCount
+      ],
+
+      [],
+
+      [
+        "Important",
+        "A successful check means the postcode was entered into the O2 checker and the resulting page was captured."
+      ]
+
+    ]);
+
+
+  summary["!cols"] = [
+
+    { wch: 30 },
+
+    { wch: 100 }
+
+  ];
+
+
+  XLSX.utils.book_append_sheet(
+
+    workbook,
+
+    summary,
+
+    "Summary"
+
+  );
+
+
+  XLSX.writeFile(
+    workbook,
+    xlsxFile
+  );
+
+
+  await browser.close();
+
+
+  console.log(
+    "===== O2 MONITOR COMPLETE ====="
+  );
+
+
+  console.log(
+    JSON.stringify(
+      {
+        timestamp,
+        postcode:
+          POSTCODE,
+        status,
+        checkResult,
+        screenshot:
+          screenshotName
+      },
+      null,
+      2
+    )
+  );
+
+
+  /*
+   * IMPORTANT:
+   *
+   * Don't make GitHub Actions fail simply
+   * because O2 returned UNKNOWN.
+   *
+   * But do fail the workflow if the
+   * automation itself failed.
+   */
+  if (
+    checkResult === "FAILED"
+  ) {
+
+    process.exit(1);
+
+  }
+
+}
+
+
+main().catch(error => {
+
+  console.error(
+    error
+  );
+
+  process.exit(1);
+
+});  }
 
   const text =
     String(value).replace(/\r?\n/g, " ");
