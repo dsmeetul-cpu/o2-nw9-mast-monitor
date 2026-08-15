@@ -8,6 +8,7 @@ const COMPLAINT_REFERENCE = "C-1308267357";
 const O2_URL = "https://status.o2.co.uk/";
 
 const root = process.cwd();
+
 const dataDir = path.join(root, "data");
 const evidenceDir = path.join(root, "evidence");
 
@@ -17,7 +18,7 @@ fs.mkdirSync(evidenceDir, { recursive: true });
 const csvFile = path.join(dataDir, "o2-nw9-0ry-monitor.csv");
 const xlsxFile = path.join(dataDir, "O2-NW9-0RY-Evidence.xlsx");
 
-function getLondonTime() {
+function londonTimestamp() {
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London",
     year: "numeric",
@@ -30,7 +31,7 @@ function getLondonTime() {
   }).format(new Date());
 }
 
-function getFileTimestamp() {
+function safeFileTimestamp() {
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London",
     year: "numeric",
@@ -42,20 +43,10 @@ function getFileTimestamp() {
     hour12: false
   }).formatToParts(new Date());
 
-  const value = type =>
-    parts.find(part => part.type === type)?.value || "";
+  const get = name =>
+    parts.find(part => part.type === name)?.value || "";
 
-  return [
-    value("year"),
-    value("month"),
-    value("day")
-  ].join("-") +
-    "_" +
-    [
-      value("hour"),
-      value("minute"),
-      value("second")
-    ].join("-");
+  return `${get("year")}-${get("month")}-${get("day")}_${get("hour")}-${get("minute")}-${get("second")}`;
 }
 
 function csvEscape(value) {
@@ -65,15 +56,15 @@ function csvEscape(value) {
 
   const text = String(value).replace(/\r?\n/g, " ");
 
-  if (text.includes(",") || text.includes('"')) {
+  if (/[",]/.test(text)) {
     return `"${text.replace(/"/g, '""')}"`;
   }
 
   return text;
 }
 
-function parseCsvLine(line) {
-  const result = [];
+function parseCSVLine(line) {
+  const values = [];
   let current = "";
   let quoted = false;
 
@@ -88,16 +79,16 @@ function parseCsvLine(line) {
         quoted = !quoted;
       }
     } else if (char === "," && !quoted) {
-      result.push(current);
+      values.push(current);
       current = "";
     } else {
       current += char;
     }
   }
 
-  result.push(current);
+  values.push(current);
 
-  return result;
+  return values;
 }
 
 function readExistingCsv() {
@@ -105,123 +96,74 @@ function readExistingCsv() {
     return [];
   }
 
-  const content = fs.readFileSync(csvFile, "utf8").trim();
+  const text = fs.readFileSync(csvFile, "utf8").trim();
 
-  if (!content) {
+  if (!text) {
     return [];
   }
 
-  const lines = content.split(/\r?\n/);
-  const headers = parseCsvLine(lines[0]);
+  const lines = text.split(/\r?\n/);
+
+  const headers = parseCSVLine(lines[0]);
 
   return lines.slice(1).map(line => {
-    const values = parseCsvLine(line);
+    const values = parseCSVLine(line);
     const record = {};
 
     headers.forEach((header, index) => {
-      record[header] = values[index] || "";
+      record[header] = values[index] ?? "";
     });
 
     return record;
   });
 }
 
-async function findPostcodeInput(page) {
-  const selectors = [
-    'input[placeholder*="postcode" i]',
-    'input[aria-label*="postcode" i]',
-    'input[name*="postcode" i]',
-    'input[id*="postcode" i]',
-    'input[placeholder*="post code" i]',
-    'input[aria-label*="post code" i]',
-    'input[name*="post code" i]',
-    'input[id*="post code" i]'
-  ];
-
-  for (const selector of selectors) {
-    const locator = page.locator(selector);
-    const count = await locator.count();
-
-    for (let i = 0; i < count; i++) {
-      const candidate = locator.nth(i);
-
-      try {
-        if (await candidate.isVisible()) {
-          return candidate;
-        }
-      } catch {
-        // Continue.
-      }
-    }
-  }
-
-  return null;
-}
-
-async function findCheckButton(page) {
-  const selectors = [
-    'button:has-text("Check")',
-    'button:has-text("Search")',
-    'button:has-text("Submit")',
-    'input[type="submit"]'
-  ];
-
-  for (const selector of selectors) {
-    const locator = page.locator(selector);
-    const count = await locator.count();
-
-    for (let i = 0; i < count; i++) {
-      const candidate = locator.nth(i);
-
-      try {
-        if (await candidate.isVisible()) {
-          return candidate;
-        }
-      } catch {
-        // Continue.
-      }
-    }
-  }
-
-  return null;
-}
-
 function classifyStatus(text) {
-  const value = text.toLowerCase();
+  const lower = text.toLowerCase();
 
-  const issueWords = [
+  /*
+   * O2 outage wording.
+   */
+  const issuePatterns = [
     "nearby phone mast",
-    "phone mast",
-    "mast isn't working",
     "mast isn’t working",
-    "not working as it should",
+    "mast isn't working",
+    "phone mast isn't working",
+    "phone mast isn’t working",
+    "isn’t working as it should",
+    "isn't working as it should",
     "service might come and go",
-    "engineers will be on the case",
-    "known issue",
-    "known problem",
-    "network issue",
-    "network problem",
+    "service may come and go",
     "outage",
-    "maintenance",
-    "fault"
+    "fault",
+    "engineers will be on the case",
+    "engineer is working",
+    "engineers are working",
+    "not working",
+    "problem with your service",
+    "problem in your area",
+    "issue in your area",
+    "known issue",
+    "maintenance"
   ];
 
-  for (const word of issueWords) {
-    if (value.includes(word)) {
+  for (const pattern of issuePatterns) {
+    if (lower.includes(pattern)) {
       return "ISSUE";
     }
   }
 
-  const okWords = [
-    "no known issues",
-    "no known issue",
+  const okPatterns = [
     "working normally",
-    "everything is working",
-    "service is working"
+    "no known issues",
+    "no issues",
+    "no issue",
+    "there are no known problems",
+    "everything is working"
   ];
 
-  for (const word of okWords) {
-    if (value.includes(word)) {
+  for (const pattern of okPatterns) {
+    if (lower.includes(pattern)) {
       return "OK";
     }
   }
@@ -229,40 +171,206 @@ function classifyStatus(text) {
   return "UNKNOWN";
 }
 
-async function saveErrorRecord(errorMessage, screenshotName = "") {
-  const existing = readExistingCsv();
+async function getAllFrames(page) {
+  return page.frames();
+}
 
-  const previous =
-    existing.length > 0
-      ? existing[existing.length - 1]
-      : null;
+async function findPostcodeInputInFrame(frame) {
+  const selectors = [
+    'input[placeholder*="postcode" i]',
+    'input[aria-label*="postcode" i]',
+    'input[name*="postcode" i]',
+    'input[id*="postcode" i]',
+    'input[data-testid*="postcode" i]',
+    'input[placeholder*="post code" i]',
+    'input[aria-label*="post code" i]',
+    'input[type="text"]'
+  ];
 
-  const now = getLondonTime();
+  for (const selector of selectors) {
+    try {
+      const locator = frame.locator(selector);
 
-  const record = {
-    "Date": now.split(",")[0],
-    "Time": now.split(",")[1]?.trim() || "",
-    "Date & Time": now,
-    "Postcode": POSTCODE,
-    "O2 Status": "UNKNOWN",
-    "O2 Message": `MONITORING ERROR: ${errorMessage}`,
-    "Expected Resolution": "",
-    "Complaint Reference": COMPLAINT_REFERENCE,
-    "Source URL": O2_URL,
-    "Screenshot": screenshotName
-      ? `evidence/${screenshotName}`
-      : "",
-    "Check Result": "FAILED",
-    "Status Changed?":
-      !previous || previous["O2 Status"] !== "UNKNOWN"
-        ? "YES"
-        : "NO",
-    "Previous Status":
-      previous?.["O2 Status"] || "",
-    "Notes":
-      "Automation failed. This check is not evidence of an O2 outage."
-  };
+      const count = await locator.count();
 
+      for (let i = 0; i < count; i++) {
+        const candidate = locator.nth(i);
+
+        if (await candidate.isVisible()) {
+          return candidate;
+        }
+      }
+    } catch {
+      // Continue.
+    }
+  }
+
+  return null;
+}
+
+async function findButtonInFrame(frame) {
+  const selectors = [
+    'button:has-text("Check")',
+    'button:has-text("Search")',
+    'button:has-text("Check status")',
+    'button:has-text("Check Status")',
+    'button:has-text("Submit")',
+    'input[type="submit"]',
+    '[role="button"]:has-text("Check")',
+    '[role="button"]:has-text("Search")',
+    'button'
+  ];
+
+  for (const selector of selectors) {
+    try {
+      const locator = frame.locator(selector);
+
+      const count = await locator.count();
+
+      for (let i = 0; i < count; i++) {
+        const candidate = locator.nth(i);
+
+        if (await candidate.isVisible()) {
+          return candidate;
+        }
+      }
+    } catch {
+      // Continue.
+    }
+  }
+
+  return null;
+}
+
+async function locateO2Postcode(page) {
+  /*
+   * First inspect the main page.
+   */
+  let input = await findPostcodeInputInFrame(page);
+
+  if (input) {
+    return {
+      frame: page,
+      input
+    };
+  }
+
+  /*
+   * Then inspect every iframe.
+   *
+   * This is the important part because O2's checker is
+   * rendered inside an embedded application.
+   */
+  const frames = await getAllFrames(page);
+
+  console.log(`Found ${frames.length} browser frame(s).`);
+
+  for (const frame of frames) {
+    try {
+      console.log(`Inspecting frame: ${frame.url()}`);
+
+      input = await findPostcodeInputInFrame(frame);
+
+      if (input) {
+        console.log("Postcode input found.");
+        return {
+          frame,
+          input
+        };
+      }
+    } catch {
+      // Continue.
+    }
+  }
+
+  return null;
+}
+
+async function waitForO2Result(frame, page) {
+  /*
+   * Give React time to render the result.
+   */
+  await page.waitForTimeout(3000);
+
+  /*
+   * Look for known O2 result text.
+   */
+  const resultPatterns = [
+    "nearby phone mast",
+    "mast isn’t working",
+    "mast isn't working",
+    "service might come and go",
+    "service may come and go",
+    "engineers will be on the case",
+    "working normally",
+    "no known issues",
+    "no issues",
+    "outage",
+    "fault",
+    "maintenance"
+  ];
+
+  for (let attempt = 0; attempt < 10; attempt++) {
+    let text = "";
+
+    try {
+      text = await frame.locator("body").innerText();
+    } catch {
+      try {
+        text = await page.locator("body").innerText();
+      } catch {
+        text = "";
+      }
+    }
+
+    const lower = text.toLowerCase();
+
+    if (resultPatterns.some(pattern => lower.includes(pattern))) {
+      console.log("O2 result detected.");
+      return text;
+    }
+
+    await page.waitForTimeout(1000);
+  }
+
+  try {
+    return await frame.locator("body").innerText();
+  } catch {
+    return await page.locator("body").innerText();
+  }
+}
+
+function extractResolution(text) {
+  const patterns = [
+    /updated\s+([0-9]{1,2}:[0-9]{2})/i,
+    /updated\s+([0-9]{1,2}:[0-9]{2}\s*(?:am|pm))/i,
+    /expected.*?([0-9]{1,2}:[0-9]{2})/i,
+    /estimated.*?([0-9]{1,2}:[0-9]{2})/i,
+    /resolved.*?([0-9]{1,2}:[0-9]{2})/i,
+    /fixed.*?([0-9]{1,2}:[0-9]{2})/i
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+
+    if (match) {
+      return match[0];
+    }
+  }
+
+  return "";
+}
+
+async function captureScreenshot(page, screenshotPath) {
+  await page.screenshot({
+    path: screenshotPath,
+    fullPage: true
+  });
+
+  console.log(`Screenshot saved: ${screenshotPath}`);
+}
+
+function writeCsv(record, existing) {
   const headers = Object.keys(record);
 
   if (!fs.existsSync(csvFile)) {
@@ -278,475 +386,376 @@ async function saveErrorRecord(errorMessage, screenshotName = "") {
     headers.map(header => csvEscape(record[header])).join(",") + "\n",
     "utf8"
   );
+
+  return [...existing, record];
+}
+
+function writeExcel(records) {
+  const worksheet = XLSX.utils.json_to_sheet(records);
+
+  worksheet["!cols"] = [
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 24 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 90 },
+    { wch: 30 },
+    { wch: 22 },
+    { wch: 35 },
+    { wch: 65 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 40 }
+  ];
+
+  const workbook = XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    worksheet,
+    "O2 Mast Log"
+  );
+
+  const issueCount = records.filter(
+    record => record["O2 Status"] === "ISSUE"
+  ).length;
+
+  const okCount = records.filter(
+    record => record["O2 Status"] === "OK"
+  ).length;
+
+  const unknownCount = records.filter(
+    record => record["O2 Status"] === "UNKNOWN"
+  ).length;
+
+  const failedCount = records.filter(
+    record => record["Check Result"] === "FAILED"
+  ).length;
+
+  const successfulCount = records.filter(
+    record => record["Check Result"] === "SUCCESS"
+  ).length;
+
+  const summary = XLSX.utils.aoa_to_sheet([
+    ["O2 NW9 0RY NETWORK EVIDENCE"],
+    [],
+    ["Postcode", POSTCODE],
+    ["Complaint Reference", COMPLAINT_REFERENCE],
+    ["Monitoring Source", O2_URL],
+    [],
+    ["Total Checks", records.length],
+    ["Successful Checks", successfulCount],
+    ["Failed Checks", failedCount],
+    ["Issue Checks", issueCount],
+    ["OK Checks", okCount],
+    ["Unknown Checks", unknownCount],
+    [],
+    [
+      "IMPORTANT",
+      "Only SUCCESS checks are considered valid automated O2 checks. FAILED checks are not evidence of an O2 outage."
+    ],
+    [
+      "PRIMARY EVIDENCE",
+      "Timestamped screenshots stored in the evidence folder."
+    ],
+    [
+      "POSTCODE",
+      POSTCODE
+    ]
+  ]);
+
+  summary["!cols"] = [
+    { wch: 30 },
+    { wch: 110 }
+  ];
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    summary,
+    "Summary"
+  );
+
+  XLSX.writeFile(workbook, xlsxFile);
+
+  console.log(`Workbook saved: ${xlsxFile}`);
 }
 
 async function main() {
-  const timestamp = getLondonTime();
-  const fileTimestamp = getFileTimestamp();
+  const browser = await chromium.launch({
+    headless: true
+  });
 
-  let browser = null;
+  const context = await browser.newContext({
+    locale: "en-GB",
+    timezoneId: "Europe/London",
+    viewport: {
+      width: 1440,
+      height: 1200
+    }
+  });
+
+  const page = await context.newPage();
+
+  const timestamp = londonTimestamp();
+  const fileTimestamp = safeFileTimestamp();
+
+  let status = "UNKNOWN";
+  let message = "";
+  let expectedResolution = "";
+  let checkResult = "FAILED";
+  let previousStatus = "";
+
+  const screenshotName =
+    `${fileTimestamp}_NW9-0RY.png`;
+
+  const screenshotPath =
+    path.join(evidenceDir, screenshotName);
+
+  const existing = readExistingCsv();
+
+  if (existing.length) {
+    previousStatus =
+      existing[existing.length - 1]["O2 Status"] || "";
+  }
 
   try {
-    console.log("========================================");
-    console.log("O2 NW9 0RY NETWORK MONITOR");
-    console.log("========================================");
-
-    console.log(`Opening: ${O2_URL}`);
-
-    browser = await chromium.launch({
-      headless: true
-    });
-
-    const context = await browser.newContext({
-      locale: "en-GB",
-      timezoneId: "Europe/London",
-      viewport: {
-        width: 1440,
-        height: 1400
-      }
-    });
-
-    const page = await context.newPage();
+    console.log("Opening O2 status page...");
 
     await page.goto(O2_URL, {
       waitUntil: "domcontentloaded",
       timeout: 60000
     });
 
-    console.log(`Page title: ${await page.title()}`);
-    console.log(`URL: ${page.url()}`);
-
     await page.waitForTimeout(5000);
 
-    console.log("Looking for postcode input...");
+    console.log(`Main page URL: ${page.url()}`);
 
-    const postcodeInput =
-      await findPostcodeInput(page);
+    console.log("Searching for O2 postcode checker...");
 
-    if (!postcodeInput) {
-      const errorScreenshot =
-        `${fileTimestamp}_ERROR_NW9-0RY.png`;
+    const located = await locateO2Postcode(page);
 
-      await page.screenshot({
-        path: path.join(
-          evidenceDir,
-          errorScreenshot
-        ),
-        fullPage: true
-      });
+    if (!located) {
+      /*
+       * IMPORTANT:
+       * Even on failure we capture the actual O2 page.
+       * This means the screenshot shows what the monitor
+       * actually saw at that exact time.
+       */
+      message =
+        "MONITORING ERROR: Could not find O2 postcode input in the main page or embedded O2 iframe.";
 
-      await saveErrorRecord(
-        "Could not find O2 postcode input.",
-        errorScreenshot
+      console.log(message);
+
+      await captureScreenshot(
+        page,
+        screenshotPath
       );
 
-      console.error(
-        "MONITORING ERROR: Could not find O2 postcode input."
-      );
-
-      await browser.close();
-      return;
+      throw new Error(message);
     }
 
-    console.log("Postcode input FOUND.");
+    const { frame, input } = located;
+
+    console.log("Entering postcode:");
 
     /*
-     * IMPORTANT:
-     * Enter the postcode exactly as:
+     * Explicitly use a SPACE.
      *
      * NW9 0RY
-     *
-     * There is a SPACE.
-     * There is NO hyphen.
      */
+    await input.fill("");
 
-    await postcodeInput.click();
+    await input.fill(POSTCODE);
 
-    await postcodeInput.fill("NW9 0RY");
-
-    await postcodeInput.dispatchEvent("input");
-    await postcodeInput.dispatchEvent("change");
-
-    await page.waitForTimeout(1000);
-
-    const actualValue =
-      await postcodeInput.inputValue();
+    /*
+     * Verify what was actually entered.
+     */
+    const enteredValue =
+      await input.inputValue();
 
     console.log(
-      `Postcode entered into O2: "${actualValue}"`
+      `Postcode field contains: "${enteredValue}"`
     );
 
-    if (actualValue !== POSTCODE) {
+    if (enteredValue !== POSTCODE) {
       throw new Error(
-        `O2 input contains "${actualValue}" instead of "${POSTCODE}".`
+        `Postcode verification failed. Expected "${POSTCODE}" but field contains "${enteredValue}".`
       );
     }
 
-    console.log("Postcode confirmed.");
+    console.log("Postcode verified.");
 
-    const checkButton =
-      await findCheckButton(page);
+    const submitButton =
+      await findButtonInFrame(frame);
 
-    if (checkButton) {
-      console.log("Check button FOUND.");
-      console.log("Clicking O2 Check button...");
+    if (submitButton) {
+      console.log("O2 check button found.");
 
-      await checkButton.click();
+      await submitButton.scrollIntoViewIfNeeded();
+
+      await submitButton.click();
+
+      console.log("O2 check button clicked.");
     } else {
       console.log(
-        "Check button not found. Pressing ENTER..."
+        "No dedicated button found. Pressing Enter."
       );
 
-      await postcodeInput.press("Enter");
+      await input.press("Enter");
     }
 
     console.log(
       "Waiting for O2 result..."
     );
 
-    await page.waitForTimeout(10000);
-
-    try {
-      await page.waitForLoadState(
-        "networkidle",
-        { timeout: 15000 }
-      );
-    } catch {
-      console.log(
-        "Network did not become completely idle; continuing."
-      );
-    }
-
-    await page.waitForTimeout(3000);
-
     const resultText =
-      await page.locator("body").innerText();
-
-    const finalUrl = page.url();
-
-    console.log("========================================");
-    console.log("O2 RESULT");
-    console.log("========================================");
-    console.log(`Final URL: ${finalUrl}`);
-    console.log(resultText.slice(0, 8000));
-    console.log("========================================");
-
-    /*
-     * Check whether O2 actually returned the postcode.
-     *
-     * Comparison ignores spaces/hyphens ONLY for verification.
-     * The actual submitted value remains "NW9 0RY".
-     */
-    const normalisedPage =
-      resultText
-        .toUpperCase()
-        .replace(/[\s-]/g, "");
-
-    const normalisedPostcode =
-      POSTCODE
-        .toUpperCase()
-        .replace(/[\s-]/g, "");
-
-    if (!normalisedPage.includes(normalisedPostcode)) {
-      const errorScreenshot =
-        `${fileTimestamp}_ERROR_NW9-0RY.png`;
-
-      await page.screenshot({
-        path: path.join(
-          evidenceDir,
-          errorScreenshot
-        ),
-        fullPage: true
-      });
-
-      await saveErrorRecord(
-        "Postcode was entered but the O2 result page did not contain NW9 0RY.",
-        errorScreenshot
+      await waitForO2Result(
+        frame,
+        page
       );
 
-      console.error(
-        "MONITORING ERROR: O2 result did not contain postcode."
-      );
+    message = resultText
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 10000);
 
-      await browser.close();
-      return;
-    }
-
-    /*
-     * Determine O2's actual reported status.
-     */
-    const status =
+    status =
       classifyStatus(resultText);
 
-    const message =
-      resultText
-        .replace(/\s+/g, " ")
-        .trim()
-        .slice(0, 5000);
+    expectedResolution =
+      extractResolution(resultText);
 
     /*
-     * PRIMARY EVIDENCE SCREENSHOT.
-     *
-     * This is taken AFTER:
-     *
-     * 1. O2 page loaded
-     * 2. NW9 0RY entered
-     * 3. Check clicked
-     * 4. O2 result loaded
+     * The check is only SUCCESS if we found the field,
+     * entered the exact postcode, submitted it and
+     * obtained the O2 result page.
      */
-    const screenshotName =
-      `${fileTimestamp}_NW9-0RY.png`;
-
-    const screenshotPath =
-      path.join(
-        evidenceDir,
-        screenshotName
-      );
-
-    await page.screenshot({
-      path: screenshotPath,
-      fullPage: true
-    });
+    checkResult = "SUCCESS";
 
     console.log(
-      `PRIMARY EVIDENCE SCREENSHOT: ${screenshotName}`
+      `O2 status classified as: ${status}`
     );
 
-    const existing =
-      readExistingCsv();
-
-    const previous =
-      existing.length > 0
-        ? existing[existing.length - 1]
-        : null;
-
-    const record = {
-      "Date": timestamp.split(",")[0],
-      "Time": timestamp.split(",")[1]?.trim() || "",
-      "Date & Time": timestamp,
-      "Postcode": POSTCODE,
-      "O2 Status": status,
-      "O2 Message": message,
-      "Expected Resolution": "",
-      "Complaint Reference":
-        COMPLAINT_REFERENCE,
-      "Source URL": O2_URL,
-      "Screenshot":
-        `evidence/${screenshotName}`,
-      "Check Result": "SUCCESS",
-      "Status Changed?":
-        !previous ||
-        previous["O2 Status"] !== status
-          ? "YES"
-          : "NO",
-      "Previous Status":
-        previous?.["O2 Status"] || "",
-      "Notes":
-        "NW9 0RY entered and submitted to O2. Screenshot captured after result loaded."
-    };
-
-    const headers =
-      Object.keys(record);
-
-    if (!fs.existsSync(csvFile)) {
-      fs.writeFileSync(
-        csvFile,
-        headers.map(csvEscape).join(",") + "\n",
-        "utf8"
-      );
-    }
-
-    fs.appendFileSync(
-      csvFile,
-      headers
-        .map(header =>
-          csvEscape(record[header])
-        )
-        .join(",") + "\n",
-      "utf8"
-    );
-
-    /*
-     * Rebuild Excel workbook.
-     */
-    const allRecords = [
-      ...existing,
-      record
-    ];
-
-    const worksheet =
-      XLSX.utils.json_to_sheet(
-        allRecords
-      );
-
-    worksheet["!cols"] = [
-      { wch: 14 },
-      { wch: 12 },
-      { wch: 24 },
-      { wch: 14 },
-      { wch: 18 },
-      { wch: 100 },
-      { wch: 30 },
-      { wch: 22 },
-      { wch: 30 },
-      { wch: 65 },
-      { wch: 18 },
-      { wch: 18 },
-      { wch: 18 },
-      { wch: 60 }
-    ];
-
-    const workbook =
-      XLSX.utils.book_new();
-
-    XLSX.utils.book_append_sheet(
-      workbook,
-      worksheet,
-      "O2 Mast Log"
-    );
-
-    const summary =
-      XLSX.utils.aoa_to_sheet([
-        ["O2 NW9 0RY NETWORK EVIDENCE"],
-        [],
-        ["Postcode", POSTCODE],
-        [
-          "Complaint Reference",
-          COMPLAINT_REFERENCE
-        ],
-        [
-          "Monitoring Source",
-          O2_URL
-        ],
-        [
-          "Total Checks",
-          allRecords.length
-        ],
-        [
-          "Successful Checks",
-          allRecords.filter(
-            x => x["Check Result"] === "SUCCESS"
-          ).length
-        ],
-        [
-          "Failed Checks",
-          allRecords.filter(
-            x => x["Check Result"] === "FAILED"
-          ).length
-        ],
-        [
-          "Issue Checks",
-          allRecords.filter(
-            x => x["O2 Status"] === "ISSUE" &&
-                 x["Check Result"] === "SUCCESS"
-          ).length
-        ],
-        [
-          "OK Checks",
-          allRecords.filter(
-            x => x["O2 Status"] === "OK" &&
-                 x["Check Result"] === "SUCCESS"
-          ).length
-        ],
-        [
-          "Unknown Checks",
-          allRecords.filter(
-            x => x["O2 Status"] === "UNKNOWN"
-          ).length
-        ],
-        [],
-        [
-          "Evidence Rule",
-          "Only SUCCESS checks are considered valid O2 status checks. FAILED checks represent automation failures and are not treated as outage evidence."
-        ],
-        [],
-        [
-          "Primary Evidence",
-          "The timestamped screenshot is captured after NW9 0RY is entered and the O2 result is displayed."
-        ]
-      ]);
-
-    summary["!cols"] = [
-      { wch: 30 },
-      { wch: 110 }
-    ];
-
-    XLSX.utils.book_append_sheet(
-      workbook,
-      summary,
-      "Summary"
-    );
-
-    XLSX.writeFile(
-      workbook,
-      xlsxFile
-    );
-
-    console.log("========================================");
-    console.log("SUCCESS");
-    console.log(`Postcode: ${POSTCODE}`);
-    console.log(`O2 Status: ${status}`);
-    console.log("Check Result: SUCCESS");
     console.log(
-      `Screenshot: ${screenshotName}`
+      "Capturing post-check screenshot..."
     );
-    console.log("========================================");
 
-    await browser.close();
+    await captureScreenshot(
+      page,
+      screenshotPath
+    );
 
   } catch (error) {
-    console.error(
-      "MONITORING ERROR:",
-      error.message
-    );
-
-    try {
-      if (browser) {
-        const contexts =
-          browser.contexts();
-
-        if (contexts.length > 0) {
-          const pages =
-            contexts[0].pages();
-
-          if (pages.length > 0) {
-            const errorScreenshot =
-              `${fileTimestamp}_ERROR_NW9-0RY.png`;
-
-            await pages[0].screenshot({
-              path: path.join(
-                evidenceDir,
-                errorScreenshot
-              ),
-              fullPage: true
-            });
-
-            await saveErrorRecord(
-              error.message,
-              errorScreenshot
-            );
-          }
-        }
-      }
-    } catch (secondaryError) {
-      console.error(
-        "Could not save error evidence:",
-        secondaryError.message
-      );
-
-      await saveErrorRecord(
-        error.message
-      );
+    if (!message) {
+      message =
+        `MONITORING ERROR: ${error.message}`;
     }
 
-    if (browser) {
+    status =
+      status === "UNKNOWN"
+        ? "UNKNOWN"
+        : status;
+
+    checkResult = "FAILED";
+
+    /*
+     * Always capture a screenshot on failure too.
+     */
+    if (!fs.existsSync(screenshotPath)) {
       try {
-        await browser.close();
+        await captureScreenshot(
+          page,
+          screenshotPath
+        );
       } catch {
-        // Ignore.
+        console.error(
+          "Could not capture failure screenshot."
+        );
       }
     }
+
+    console.error(message);
   }
+
+  const statusChanged =
+    !previousStatus ||
+    previousStatus !== status
+      ? "YES"
+      : "NO";
+
+  const record = {
+    "Date":
+      timestamp.split(",")[0],
+
+    "Time":
+      timestamp.split(",")[1]?.trim() ||
+      timestamp,
+
+    "Date & Time":
+      timestamp,
+
+    "Postcode":
+      POSTCODE,
+
+    "O2 Status":
+      status,
+
+    "O2 Message":
+      message,
+
+    "Expected Resolution":
+      expectedResolution,
+
+    "Complaint Reference":
+      COMPLAINT_REFERENCE,
+
+    "Source URL":
+      O2_URL,
+
+    "Screenshot":
+      `evidence/${screenshotName}`,
+
+    "Check Result":
+      checkResult,
+
+    "Status Changed?":
+      statusChanged,
+
+    "Previous Status":
+      previousStatus,
+
+    "Notes":
+      checkResult === "SUCCESS"
+        ? "Automated O2 postcode check completed. Screenshot captured after result."
+        : "Automated check failed. This record is not considered evidence of an O2 outage."
+  };
+
+  const allRecords =
+    writeCsv(record, existing);
+
+  writeExcel(allRecords);
+
+  console.log("");
+  console.log("======================================");
+  console.log("O2 NW9 0RY MONITOR RESULT");
+  console.log("======================================");
+  console.log(`Timestamp: ${timestamp}`);
+  console.log(`Postcode: ${POSTCODE}`);
+  console.log(`Status: ${status}`);
+  console.log(`Check Result: ${checkResult}`);
+  console.log(`Screenshot: ${screenshotName}`);
+  console.log("======================================");
+
+  await browser.close();
 }
 
-main();
+main().catch(error => {
+  console.error(
+    "FATAL MONITOR ERROR:",
+    error
+  );
+
+  process.exit(1);
+});
