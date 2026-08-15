@@ -3,7 +3,6 @@
 <html lang="en">
 
 <head>
-
 <meta charset="UTF-8">
 
 <meta name="viewport"
@@ -39,7 +38,6 @@ h1 {
     display: grid;
     grid-template-columns:
         repeat(auto-fit, minmax(200px, 1fr));
-
     gap: 15px;
 }
 
@@ -241,15 +239,10 @@ Loading monitor data...
 <thead>
 
 <tr>
-
 <th>Date & Time</th>
-
 <th>Status</th>
-
 <th>Result</th>
-
 <th>Screenshot</th>
-
 </tr>
 
 </thead>
@@ -260,9 +253,7 @@ Loading monitor data...
 <tr>
 
 <td colspan="4" class="loading">
-
 Loading monitor data...
-
 </td>
 
 </tr>
@@ -279,20 +270,6 @@ Loading monitor data...
 <script>
 
 
-/*
- * O2 NW9 0RY MONITOR DASHBOARD
- *
- * The dashboard is located in:
- *
- * dashboard/index.html
- *
- * The CSV is expected in:
- *
- * data/o2-nw9-0ry-monitor.csv
- *
- */
-
-
 async function loadData() {
 
     const errorBox =
@@ -307,15 +284,21 @@ async function loadData() {
 
 
     /*
-     * Because GitHub Pages can run the site
-     * under a repository sub-path, construct
-     * the CSV path relative to this page.
+     * IMPORTANT:
+     *
+     * GitHub Pages repository:
+     *
+     * o2-nw9-mast-monitor
+     *
+     * Therefore the CSV is loaded from:
+     *
+     * /o2-nw9-mast-monitor/data/
      */
 
     const csvUrl =
         new URL(
-            "../data/o2-nw9-0ry-monitor.csv",
-            window.location.href
+            "/o2-nw9-mast-monitor/data/o2-nw9-0ry-monitor.csv",
+            window.location.origin
         ).href;
 
 
@@ -494,7 +477,9 @@ async function loadData() {
                 "issue"
             );
 
-        } else if (
+        }
+
+        else if (
             latestStatus.toUpperCase()
             === "OK"
         ) {
@@ -503,7 +488,9 @@ async function loadData() {
                 "ok"
             );
 
-        } else {
+        }
+
+        else {
 
             latestElement.classList.add(
                 "warning"
@@ -567,7 +554,9 @@ async function loadData() {
                     statusClass =
                         "status-issue";
 
-                } else if (
+                }
+
+                else if (
                     statusUpper === "OK"
                 ) {
 
@@ -586,9 +575,8 @@ async function loadData() {
                 ) {
 
                     /*
-                     * Remove a leading slash so
-                     * the link works correctly on
-                     * GitHub Pages project sites.
+                     * Screenshot paths in the CSV
+                     * are relative to the repository.
                      */
 
                     const cleanPath =
@@ -602,9 +590,9 @@ async function loadData() {
 
                     const screenshotUrl =
                         new URL(
-                            "../" +
+                            "/o2-nw9-mast-monitor/" +
                             cleanPath,
-                            window.location.href
+                            window.location.origin
                         ).href;
 
 
@@ -654,7 +642,7 @@ async function loadData() {
 
 
         /*
-         * Dashboard update information.
+         * Update information.
          */
 
         document.getElementById(
@@ -702,12 +690,8 @@ async function loadData() {
 
 
         /*
-         * IMPORTANT:
-         *
-         * Do NOT silently show zero.
-         *
-         * If GitHub Pages cannot access
-         * the CSV, show the actual error.
+         * Never silently display zero
+         * if the CSV cannot be loaded.
          */
 
         errorBox.innerHTML =
@@ -771,12 +755,7 @@ async function loadData() {
 
 
 /*
- * Simple CSV parser.
- *
- * Handles:
- * - commas
- * - quoted fields
- * - escaped quotes
+ * CSV parser.
  */
 
 function parseCSV(line) {
@@ -809,7 +788,9 @@ function parseCSV(line) {
 
                 i++;
 
-            } else {
+            }
+
+            else {
 
                 quoted =
                     !quoted;
@@ -817,7 +798,6 @@ function parseCSV(line) {
             }
 
         }
-
 
         else if (
             char === "," &&
@@ -831,7 +811,6 @@ function parseCSV(line) {
             current = "";
 
         }
-
 
         else {
 
@@ -853,8 +832,7 @@ function parseCSV(line) {
 
 
 /*
- * Prevent CSV content from being
- * interpreted as HTML.
+ * Escape HTML.
  */
 
 function escapeHtml(value) {
@@ -895,9 +873,6 @@ loadData();
 
 /*
  * Refresh dashboard every 5 minutes.
- *
- * This does NOT affect the hourly
- * monitoring GitHub Action.
  */
 
 setInterval(
