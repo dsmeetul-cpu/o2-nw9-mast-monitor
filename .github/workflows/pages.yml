@@ -1,0 +1,53 @@
+name: Deploy O2 NW9 Dashboard
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
+
+      - name: Prepare site
+        run: |
+          rm -rf _site
+          mkdir -p _site
+          cp -R dashboard/. _site/
+          cp -R data _site/data
+          if [ -d evidence ]; then cp -R evidence _site/evidence; fi
+
+      - name: Verify site contents
+        run: |
+          echo "=== PUBLISHED FILES ==="
+          find _site -maxdepth 3 -type f | sort
+          echo "=== CSV CHECK ==="
+          ls -lh _site/data/o2-nw9-0ry-monitor.csv
+          echo "=== CSV RECORD COUNT ==="
+          wc -l _site/data/o2-nw9-0ry-monitor.csv
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
