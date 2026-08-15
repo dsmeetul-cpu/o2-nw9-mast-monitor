@@ -1,11 +1,9 @@
 import { chromium } from "playwright";
 import fs from "fs";
 import path from "path";
-import XLSX from "xlsx";
 
-const POSTCODE = "NW9 0RY";
-const COMPLAINT_REFERENCE = "C-1308267357";
 const O2_URL = "https://status.o2.co.uk/";
+const POSTCODE = "NW9 0RY";
 
 const root = process.cwd();
 
@@ -15,51 +13,615 @@ const evidenceDir = path.join(root, "evidence");
 fs.mkdirSync(dataDir, { recursive: true });
 fs.mkdirSync(evidenceDir, { recursive: true });
 
-const csvFile = path.join(dataDir, "o2-nw9-0ry-monitor.csv");
-const xlsxFile = path.join(dataDir, "O2-NW9-0RY-Evidence.xlsx");
+const timestamp = new Date()
+  .toISOString()
+  .replace(/[:.]/g, "-");
 
-function londonTimestamp() {
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/London",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false
-  }).format(new Date());
+const diagnosticFile = path.join(
+  dataDir,
+  "o2-diagnostic.txt"
+);
+
+const screenshotFile = path.join(
+  evidenceDir,
+  `${timestamp}_DIAGNOSTIC_NW9-0RY.png`
+);
+
+const output = [];
+
+function log(message = "") {
+  console.log(message);
+  output.push(message);
 }
 
-function safeFileTimestamp() {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/London",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false
-  }).formatToParts(new Date());
-
-  const get = name =>
-    parts.find(part => part.type === name)?.value || "";
-
-  return `${get("year")}-${get("month")}-${get("day")}_${get("hour")}-${get("minute")}-${get("second")}`;
+function separator() {
+  log("");
+  log("============================================================");
+  log("");
 }
 
-function csvEscape(value) {
-  if (value === null || value === undefined) {
+async function safeAttribute(locator, attribute) {
+  try {
+    return (await locator.getAttribute(attribute)) || "";
+  } catch {
     return "";
   }
+}
 
-  const text = String(value).replace(/\r?\n/g, " ");
+async function safeText(locator) {
+  try {
+    return ((await locator.innerText()) || "").trim();
+  } catch {
+    return "";
+  }
+}
 
-  if (/[",]/.test(text)) {
-    return `"${text.replace(/"/g, '""')}"`;
+async function isVisible(locator) {
+  try {
+    return await locator.isVisible();
+  } catch {
+    return false;
+  }
+}
+
+async function inspectFrame(frame, frameNumber) {
+  separator();
+
+  log(`FRAME ${frameNumber}`);
+  log(`URL: ${frame.url()}`);
+
+  if (!frame.url()) {
+    log("URL: [EMPTY]");
   }
 
+  // ----------------------------------------------------------
+  // INPUTS
+  // ----------------------------------------------------------
+
+  log("");
+  log(`--- INPUTS IN FRAME ${frameNumber} ---`);
+
+  const inputs = frame.locator("input");
+
+  let inputCount = 0;
+
+  try {
+    inputCount = await inputs.count();
+  } catch {
+    inputCount = 0;
+  }
+
+  log(`Total input elements found: ${inputCount}`);
+
+  for (let i = 0; i < inputCount; i++) {
+    const input = inputs.nth(i);
+
+    if (!(await isVisible(input))) {
+      continue;
+    }
+
+    const type = await safeAttribute(input, "type");
+    const placeholder = await safeAttribute(input, "placeholder");
+    const name = await safeAttribute(input, "name");
+    const id = await safeAttribute(input, "id");
+    const ariaLabel = await safeAttribute(input, "aria-label");
+    const value = await safeAttribute(input, "value");
+    const autocomplete = await safeAttribute(input, "autocomplete");
+    const className = await safeAttribute(input, "class");
+
+    log("");
+    log(`VISIBLE INPUT #${i + 1}`);
+    log(`  type:         ${type}`);
+    log(`  placeholder:  ${placeholder}`);
+    log(`  name:         ${name}`);
+    log(`  id:           ${id}`);
+    log(`  aria-label:   ${ariaLabel}`);
+    log(`  value:        ${value}`);
+    log(`  autocomplete: ${autocomplete}`);
+    log(`  class:        ${className}`);
+  }
+
+  // ----------------------------------------------------------
+  // TEXTAREAS
+  // ----------------------------------------------------------
+
+  log("");
+  log(`--- TEXTAREAS IN FRAME ${frameNumber} ---`);
+
+  const textareas = frame.locator("textarea");
+
+  let textareaCount = 0;
+
+  try {
+    textareaCount = await textareas.count();
+  } catch {
+    textareaCount = 0;
+  }
+
+  log(`Total textarea elements found: ${textareaCount}`);
+
+  for (let i = 0; i < textareaCount; i++) {
+    const textarea = textareas.nth(i);
+
+    if (!(await isVisible(textarea))) {
+      continue;
+    }
+
+    log("");
+    log(`VISIBLE TEXTAREA #${i + 1}`);
+    log(`  placeholder: ${await safeAttribute(textarea, "placeholder")}`);
+    log(`  name:        ${await safeAttribute(textarea, "name")}`);
+    log(`  id:          ${await safeAttribute(textarea, "id")}`);
+    log(`  aria-label:  ${await safeAttribute(textarea, "aria-label")}`);
+  }
+
+  // ----------------------------------------------------------
+  // BUTTONS
+  // ----------------------------------------------------------
+
+  log("");
+  log(`--- BUTTONS IN FRAME ${frameNumber} ---`);
+
+  const buttons = frame.locator("button");
+
+  let buttonCount = 0;
+
+  try {
+    buttonCount = await buttons.count();
+  } catch {
+    buttonCount = 0;
+  }
+
+  log(`Total button elements found: ${buttonCount}`);
+
+  for (let i = 0; i < buttonCount; i++) {
+    const button = buttons.nth(i);
+
+    if (!(await isVisible(button))) {
+      continue;
+    }
+
+    const text = await safeText(button);
+    const type = await safeAttribute(button, "type");
+    const ariaLabel = await safeAttribute(button, "aria-label");
+    const id = await safeAttribute(button, "id");
+    const name = await safeAttribute(button, "name");
+    const title = await safeAttribute(button, "title");
+    const className = await safeAttribute(button, "class");
+
+    log("");
+    log(`VISIBLE BUTTON #${i + 1}`);
+    log(`  text:        ${text}`);
+    log(`  type:        ${type}`);
+    log(`  aria-label:  ${ariaLabel}`);
+    log(`  id:          ${id}`);
+    log(`  name:        ${name}`);
+    log(`  title:       ${title}`);
+    log(`  class:       ${className}`);
+  }
+
+  // ----------------------------------------------------------
+  // INPUT-LIKE ELEMENTS
+  // ----------------------------------------------------------
+
+  log("");
+  log(`--- INPUT-LIKE ELEMENTS IN FRAME ${frameNumber} ---`);
+
+  const inputLike = frame.locator(
+    '[contenteditable="true"], [role="textbox"], [role="combobox"]'
+  );
+
+  let inputLikeCount = 0;
+
+  try {
+    inputLikeCount = await inputLike.count();
+  } catch {
+    inputLikeCount = 0;
+  }
+
+  log(`Total input-like elements found: ${inputLikeCount}`);
+
+  for (let i = 0; i < inputLikeCount; i++) {
+    const element = inputLike.nth(i);
+
+    if (!(await isVisible(element))) {
+      continue;
+    }
+
+    log("");
+    log(`VISIBLE INPUT-LIKE ELEMENT #${i + 1}`);
+    log(`  tag:         ${await element.evaluate(el => el.tagName)}`);
+    log(`  role:        ${await safeAttribute(element, "role")}`);
+    log(`  contenteditable: ${await safeAttribute(element, "contenteditable")}`);
+    log(`  placeholder: ${await safeAttribute(element, "placeholder")}`);
+    log(`  name:        ${await safeAttribute(element, "name")}`);
+    log(`  id:          ${await safeAttribute(element, "id")}`);
+    log(`  aria-label:  ${await safeAttribute(element, "aria-label")}`);
+    log(`  aria-labelledby: ${await safeAttribute(element, "aria-labelledby")}`);
+    log(`  class:       ${await safeAttribute(element, "class")}`);
+  }
+
+  // ----------------------------------------------------------
+  // LINKS
+  // ----------------------------------------------------------
+
+  log("");
+  log(`--- VISIBLE LINKS IN FRAME ${frameNumber} ---`);
+
+  const links = frame.locator("a");
+
+  let linkCount = 0;
+
+  try {
+    linkCount = await links.count();
+  } catch {
+    linkCount = 0;
+  }
+
+  let visibleLinks = 0;
+
+  for (let i = 0; i < linkCount; i++) {
+    const link = links.nth(i);
+
+    if (!(await isVisible(link))) {
+      continue;
+    }
+
+    visibleLinks++;
+
+    const text = await safeText(link);
+    const href = await safeAttribute(link, "href");
+    const ariaLabel = await safeAttribute(link, "aria-label");
+
+    log(
+      `LINK #${i + 1}: text="${text}" href="${href}" aria-label="${ariaLabel}"`
+    );
+  }
+
+  log(`Visible links: ${visibleLinks}`);
+
+  // ----------------------------------------------------------
+  // FORMS
+  // ----------------------------------------------------------
+
+  log("");
+  log(`--- FORMS IN FRAME ${frameNumber} ---`);
+
+  const forms = frame.locator("form");
+
+  let formCount = 0;
+
+  try {
+    formCount = await forms.count();
+  } catch {
+    formCount = 0;
+  }
+
+  log(`Forms found: ${formCount}`);
+
+  for (let i = 0; i < formCount; i++) {
+    const form = forms.nth(i);
+
+    if (!(await isVisible(form))) {
+      continue;
+    }
+
+    log("");
+    log(`VISIBLE FORM #${i + 1}`);
+    log(`  action: ${await safeAttribute(form, "action")}`);
+    log(`  method: ${await safeAttribute(form, "method")}`);
+    log(`  id:     ${await safeAttribute(form, "id")}`);
+    log(`  name:   ${await safeAttribute(form, "name")}`);
+  }
+
+  // ----------------------------------------------------------
+  // BODY TEXT
+  // ----------------------------------------------------------
+
+  log("");
+  log(`--- VISIBLE TEXT IN FRAME ${frameNumber} ---`);
+
+  try {
+    const bodyText = await frame.locator("body").innerText();
+
+    const cleaned = bodyText
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+
+    log(cleaned.slice(0, 12000));
+  } catch (error) {
+    log(`Could not read body text: ${error.message}`);
+  }
+}
+
+async function main() {
+  log("============================================================");
+  log("O2 NW9 0RY DIAGNOSTIC MONITOR");
+  log("============================================================");
+  log(`Target URL: ${O2_URL}`);
+  log(`Postcode intended for test: "${POSTCODE}"`);
+  log(`Timestamp: ${new Date().toISOString()}`);
+  log("");
+
+  const browser = await chromium.launch({
+    headless: true
+  });
+
+  const context = await browser.newContext({
+    locale: "en-GB",
+    timezoneId: "Europe/London",
+    viewport: {
+      width: 1440,
+      height: 1200
+    }
+  });
+
+  const page = await context.newPage();
+
+  // Capture console messages from the O2 page.
+  page.on("console", message => {
+    log(
+      `[PAGE CONSOLE] ${message.type()}: ${message.text()}`
+    );
+  });
+
+  // Capture failed network requests.
+  page.on("requestfailed", request => {
+    log("");
+    log(
+      `[REQUEST FAILED] ${request.method()} ${request.url()}`
+    );
+
+    const failure = request.failure();
+
+    if (failure) {
+      log(`  Error: ${failure.errorText}`);
+    }
+  });
+
+  // Capture responses that return errors.
+  page.on("response", response => {
+    if (response.status() >= 400) {
+      log(
+        `[HTTP ${response.status()}] ${response.request().method()} ${response.url()}`
+      );
+    }
+  });
+
+  try {
+    log("");
+    log("Opening O2 status page...");
+
+    await page.goto(O2_URL, {
+      waitUntil: "domcontentloaded",
+      timeout: 60000
+    });
+
+    log(`Initial page URL: ${page.url()}`);
+
+    log("");
+    log("Waiting 5 seconds for JavaScript/iframes to load...");
+
+    await page.waitForTimeout(5000);
+
+    // Scroll through the page to trigger lazy-loaded content.
+    try {
+      await page.evaluate(async () => {
+        window.scrollTo(0, document.body.scrollHeight);
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        window.scrollTo(0, 0);
+      });
+    } catch {
+      // Ignore scrolling errors.
+    }
+
+    log("");
+    log("Waiting another 3 seconds for dynamic content...");
+
+    await page.waitForTimeout(3000);
+
+    // --------------------------------------------------------
+    // MAIN PAGE
+    // --------------------------------------------------------
+
+    await inspectFrame(page.mainFrame(), 0);
+
+    // --------------------------------------------------------
+    // ALL IFRAMES
+    // --------------------------------------------------------
+
+    separator();
+
+    log("============================================================");
+    log("IFRAME INVENTORY");
+    log("============================================================");
+
+    const frames = page.frames();
+
+    log(`Total frames detected: ${frames.length}`);
+
+    for (let i = 0; i < frames.length; i++) {
+      const frame = frames[i];
+
+      log("");
+      log(`FRAME ${i}`);
+      log(`URL: ${frame.url()}`);
+
+      if (frame.parentFrame()) {
+        log(
+          `Parent frame URL: ${frame.parentFrame().url()}`
+        );
+      } else {
+        log("Parent: MAIN PAGE");
+      }
+    }
+
+    // --------------------------------------------------------
+    // INSPECT EVERY FRAME
+    // --------------------------------------------------------
+
+    separator();
+
+    log("============================================================");
+    log("DETAILED FRAME INSPECTION");
+    log("============================================================");
+
+    for (let i = 0; i < frames.length; i++) {
+      try {
+        await inspectFrame(frames[i], i);
+      } catch (error) {
+        log("");
+        log(
+          `ERROR INSPECTING FRAME ${i}: ${error.message}`
+        );
+      }
+    }
+
+    // --------------------------------------------------------
+    // ALL FRAME ELEMENTS FROM MAIN PAGE
+    // --------------------------------------------------------
+
+    separator();
+
+    log("============================================================");
+    log("IFRAME ELEMENTS AS SEEN FROM MAIN PAGE");
+    log("============================================================");
+
+    const iframeElements = page.locator("iframe");
+
+    const iframeCount = await iframeElements.count();
+
+    log(`iframe elements found: ${iframeCount}`);
+
+    for (let i = 0; i < iframeCount; i++) {
+      const iframe = iframeElements.nth(i);
+
+      log("");
+      log(`IFRAME ELEMENT #${i + 1}`);
+      log(`  src:         ${await safeAttribute(iframe, "src")}`);
+      log(`  id:          ${await safeAttribute(iframe, "id")}`);
+      log(`  name:        ${await safeAttribute(iframe, "name")}`);
+      log(`  title:       ${await safeAttribute(iframe, "title")}`);
+      log(`  class:       ${await safeAttribute(iframe, "class")}`);
+      log(`  aria-label:  ${await safeAttribute(iframe, "aria-label")}`);
+
+      try {
+        log(`  visible:     ${await iframe.isVisible()}`);
+      } catch {
+        log("  visible:     unknown");
+      }
+    }
+
+    // --------------------------------------------------------
+    // SEARCH FOR POSTCODE WORDING EVERYWHERE
+    // --------------------------------------------------------
+
+    separator();
+
+    log("============================================================");
+    log("POSTCODE SEARCH");
+    log("============================================================");
+
+    for (let i = 0; i < frames.length; i++) {
+      const frame = frames[i];
+
+      try {
+        const bodyText = (
+          await frame.locator("body").innerText()
+        ).toLowerCase();
+
+        const postcodePositions = [
+          "postcode",
+          "post code",
+          "enter your postcode",
+          "enter postcode",
+          "location"
+        ];
+
+        const found = postcodePositions.filter(
+          term => bodyText.includes(term)
+        );
+
+        log("");
+        log(`FRAME ${i}: ${frame.url()}`);
+        log(
+          found.length
+            ? `FOUND WORDS: ${found.join(", ")}`
+            : "No postcode/location wording detected."
+        );
+      } catch (error) {
+        log(
+          `FRAME ${i}: Unable to inspect text - ${error.message}`
+        );
+      }
+    }
+
+    // --------------------------------------------------------
+    // SCREENSHOT
+    // --------------------------------------------------------
+
+    separator();
+
+    log("============================================================");
+    log("SCREENSHOT");
+    log("============================================================");
+
+    await page.screenshot({
+      path: screenshotFile,
+      fullPage: true
+    });
+
+    log(`Diagnostic screenshot: ${screenshotFile}`);
+
+    // --------------------------------------------------------
+    // SAVE DIAGNOSTIC FILE
+    // --------------------------------------------------------
+
+    separator();
+
+    log("Saving diagnostic report...");
+
+    fs.writeFileSync(
+      diagnosticFile,
+      output.join("\n"),
+      "utf8"
+    );
+
+    log(`Diagnostic report: ${diagnosticFile}`);
+
+    separator();
+
+    log("============================================================");
+    log("DIAGNOSTIC COMPLETE");
+    log("============================================================");
+    log("");
+    log("IMPORTANT:");
+    log("This diagnostic intentionally does NOT attempt to submit");
+    log("the postcode.");
+    log("");
+    log("Use the GitHub Actions log to identify:");
+    log("1. The O2 iframe containing the postcode checker.");
+    log("2. The exact input selector.");
+    log("3. The exact submit button.");
+    log("4. Any dynamically generated iframe URL.");
+    log("5. Any postcode-related elements.");
+    log("");
+
+  } catch (error) {
+    log("");
+    log("============================================================");
+    log("DIAGNOSTIC ERROR");
+    log("============================================================");
+    log(error.stack || error.message);
+  } finally {
+    await browser.close();
+  }
+
+  // Always exit successfully so we can inspect the diagnostics.
+  process.exit(0);
+}
+
+main();
   return text;
 }
 
