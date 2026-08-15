@@ -1,10 +1,9 @@
-name: O2 NW9 0RY Network Monitor 14/08/2026
+name: O2 NW9 0RY Network Monitor
 
 on:
   workflow_dispatch:
 
   schedule:
-    # Run approximately every hour at 5 minutes past the hour.
     - cron: "5 * * * *"
 
 permissions:
@@ -24,6 +23,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
+          cache: npm
 
       - name: Install dependencies
         run: npm install
@@ -31,18 +31,40 @@ jobs:
       - name: Install Playwright Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Run O2 network check
+      - name: Run O2 diagnostic monitor
         run: npm run monitor
+        env:
+          CI: true
 
       - name: Show generated files
+        if: always()
         run: |
-          echo "===== DATA ====="
+          echo "========================================"
+          echo "GENERATED DATA FILES"
+          echo "========================================"
           ls -lah data || true
 
-          echo "===== EVIDENCE ====="
+          echo ""
+          echo "========================================"
+          echo "GENERATED EVIDENCE FILES"
+          echo "========================================"
           ls -lah evidence || true
 
+      - name: Show latest CSV
+        if: always()
+        run: |
+          echo "========================================"
+          echo "LATEST O2 MONITOR CSV"
+          echo "========================================"
+
+          if [ -f data/o2-nw9-0ry-monitor.csv ]; then
+            tail -n 5 data/o2-nw9-0ry-monitor.csv
+          else
+            echo "CSV file not found."
+          fi
+
       - name: Commit evidence
+        if: always()
         run: |
           git config user.name "O2 Mast Monitor"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -52,6 +74,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "No new evidence to commit."
           else
-            git commit -m "O2 NW9 0RY network check $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git commit -m "O2 NW9 0RY diagnostic check $(date -u '+%Y-%m-%d %H:%M UTC')"
             git push
           fi
