@@ -1,22 +1,14 @@
 import { chromium } from "playwright";
 import fs from "fs";
 import path from "path";
-import XLSX from "xlsx";
 
 const POSTCODE = "NW9 0RY";
-const COMPLAINT_REFERENCE = "C-1308267357";
 const O2_URL = "https://status.o2.co.uk/";
 
 const root = process.cwd();
-
-const dataDir = path.join(root, "data");
 const evidenceDir = path.join(root, "evidence");
 
-fs.mkdirSync(dataDir, { recursive: true });
 fs.mkdirSync(evidenceDir, { recursive: true });
-
-const csvFile = path.join(dataDir, "o2-nw9-0ry-monitor.csv");
-const xlsxFile = path.join(dataDir, "O2-NW9-0RY-Evidence.xlsx");
 
 function londonTimestamp() {
   return new Intl.DateTimeFormat("en-GB", {
@@ -44,22 +36,518 @@ function safeFileTimestamp() {
   }).formatToParts(new Date());
 
   const get = name =>
-    parts.find(p => p.type === name)?.value;
+    parts.find(p => p.type === name)?.value || "";
 
   return `${get("year")}-${get("month")}-${get("day")}_${get("hour")}-${get("minute")}-${get("second")}`;
 }
 
-function csvEscape(value) {
-  if (value === null || value === undefined) return "";
+async function main() {
 
-  const text = String(value).replace(/\r?\n/g, " ");
+  console.log("========================================");
+  console.log("O2 NW9 DIAGNOSTIC MONITOR");
+  console.log("========================================");
+  console.log(`Time: ${londonTimestamp()}`);
+  console.log(`Postcode: ${POSTCODE}`);
+  console.log(`Starting URL: ${O2_URL}`);
+  console.log("");
 
-  return /[",]/.test(text)
-    ? `"${text.replace(/"/g, '""')}"`
-    : text;
+  const browser = await chromium.launch({
+    headless: true
+  });
+
+  const context = await browser.newContext({
+    locale: "en-GB",
+    timezoneId: "Europe/London",
+    viewport: {
+      width: 1440,
+      height: 1200
+    }
+  });
+
+  const page = await context.newPage();
+
+  /*
+   * Log navigation.
+   */
+  page.on("framenavigated", frame => {
+    if (frame === page.mainFrame()) {
+      console.log(
+        `[NAVIGATION] ${frame.url()}`
+      );
+    }
+  });
+
+  /*
+   * Log console messages from the O2 page.
+   */
+  page.on("console", msg => {
+    console.log(
+      `[BROWSER CONSOLE] ${msg.type()}: ${msg.text()}`
+    );
+  });
+
+  /*
+   * Log failed network requests.
+   */
+  page.on("requestfailed", request => {
+    console.log(
+      `[REQUEST FAILED] ${request.method()} ${request.url()}`
+    );
+
+    console.log(
+      `  Error: ${request.failure()?.errorText || "unknown"}`
+    );
+  });
+
+  /*
+   * Log HTTP errors.
+   */
+  page.on("response", response => {
+    if (response.status() >= 400) {
+      console.log(
+        `[HTTP ${response.status()}] ${response.url()}`
+      );
+    }
+  });
+
+  try {
+
+    console.log("");
+    console.log("STEP 1: Opening O2 status page...");
+    console.log("");
+
+    await page.goto(O2_URL, {
+      waitUntil: "domcontentloaded",
+      timeout: 60000
+    });
+
+    await page.waitForTimeout(5000);
+
+    console.log("");
+    console.log("CURRENT PAGE");
+    console.log("----------------------------------------");
+    console.log(`URL: ${page.url()}`);
+    console.log(`Title: ${await page.title()}`);
+    console.log("");
+
+    /*
+     * PAGE TEXT
+     */
+    console.log("");
+    console.log("VISIBLE PAGE TEXT");
+    console.log("----------------------------------------");
+
+    const bodyText =
+      await page.locator("body").innerText();
+
+    console.log(
+      bodyText.slice(0, 15000)
+    );
+
+    /*
+     * LINKS
+     */
+    console.log("");
+    console.log("ALL VISIBLE LINKS");
+    console.log("----------------------------------------");
+
+    const links =
+      await page.locator("a").evaluateAll(
+        elements =>
+          elements
+            .filter(el => {
+              const style =
+                window.getComputedStyle(el);
+
+              return (
+                style.display !== "none" &&
+                style.visibility !== "hidden"
+              );
+            })
+            .map((el, index) => ({
+              index,
+              text:
+                el.innerText
+                  ?.replace(/\s+/g, " ")
+                  .trim(),
+              href:
+                el.href || "",
+              aria:
+                el.getAttribute("aria-label") || "",
+              title:
+                el.getAttribute("title") || ""
+            }))
+      );
+
+    links.forEach(link => {
+
+      console.log(
+        `[LINK ${link.index}]`
+      );
+
+      console.log(
+        `  Text: ${link.text}`
+      );
+
+      console.log(
+        `  Href: ${link.href}`
+      );
+
+      if (link.aria) {
+        console.log(
+          `  ARIA: ${link.aria}`
+        );
+      }
+
+      if (link.title) {
+        console.log(
+          `  Title: ${link.title}`
+        );
+      }
+
+      console.log("");
+    });
+
+    /*
+     * INPUTS
+     */
+    console.log("");
+    console.log("ALL INPUTS");
+    console.log("----------------------------------------");
+
+    const inputs =
+      await page.locator("input").evaluateAll(
+        elements =>
+          elements.map((el, index) => ({
+            index,
+            type:
+              el.getAttribute("type") || "",
+            name:
+              el.getAttribute("name") || "",
+            id:
+              el.getAttribute("id") || "",
+            placeholder:
+              el.getAttribute("placeholder") || "",
+            aria:
+              el.getAttribute("aria-label") || "",
+            value:
+              el.getAttribute("value") || "",
+            autocomplete:
+              el.getAttribute("autocomplete") || "",
+            visible:
+              !!(
+                el.offsetWidth ||
+                el.offsetHeight ||
+                el.getClientRects().length
+              )
+          }))
+      );
+
+    if (inputs.length === 0) {
+      console.log("NO INPUT ELEMENTS FOUND");
+    }
+
+    inputs.forEach(input => {
+      console.log(
+        `[INPUT ${input.index}]`
+      );
+
+      console.log(
+        `  Type: ${input.type}`
+      );
+
+      console.log(
+        `  Name: ${input.name}`
+      );
+
+      console.log(
+        `  ID: ${input.id}`
+      );
+
+      console.log(
+        `  Placeholder: ${input.placeholder}`
+      );
+
+      console.log(
+        `  ARIA: ${input.aria}`
+      );
+
+      console.log(
+        `  Autocomplete: ${input.autocomplete}`
+      );
+
+      console.log(
+        `  Visible: ${input.visible}`
+      );
+
+      console.log("");
+    });
+
+    /*
+     * BUTTONS
+     */
+    console.log("");
+    console.log("ALL BUTTONS");
+    console.log("----------------------------------------");
+
+    const buttons =
+      await page.locator("button").evaluateAll(
+        elements =>
+          elements.map((el, index) => ({
+            index,
+            text:
+              el.innerText
+                ?.replace(/\s+/g, " ")
+                .trim(),
+            type:
+              el.getAttribute("type") || "",
+            id:
+              el.getAttribute("id") || "",
+            name:
+              el.getAttribute("name") || "",
+            aria:
+              el.getAttribute("aria-label") || "",
+            disabled:
+              el.disabled,
+            visible:
+              !!(
+                el.offsetWidth ||
+                el.offsetHeight ||
+                el.getClientRects().length
+              )
+          }))
+      );
+
+    if (buttons.length === 0) {
+      console.log("NO BUTTON ELEMENTS FOUND");
+    }
+
+    buttons.forEach(button => {
+
+      console.log(
+        `[BUTTON ${button.index}]`
+      );
+
+      console.log(
+        `  Text: ${button.text}`
+      );
+
+      console.log(
+        `  Type: ${button.type}`
+      );
+
+      console.log(
+        `  ID: ${button.id}`
+      );
+
+      console.log(
+        `  Name: ${button.name}`
+      );
+
+      console.log(
+        `  ARIA: ${button.aria}`
+      );
+
+      console.log(
+        `  Disabled: ${button.disabled}`
+      );
+
+      console.log(
+        `  Visible: ${button.visible}`
+      );
+
+      console.log("");
+    });
+
+    /*
+     * FORMS
+     */
+    console.log("");
+    console.log("FORMS");
+    console.log("----------------------------------------");
+
+    const forms =
+      await page.locator("form").evaluateAll(
+        elements =>
+          elements.map((el, index) => ({
+            index,
+            action:
+              el.getAttribute("action") || "",
+            method:
+              el.getAttribute("method") || "",
+            text:
+              el.innerText
+                ?.replace(/\s+/g, " ")
+                .trim()
+                .slice(0, 1000)
+          }))
+      );
+
+    if (forms.length === 0) {
+      console.log("NO FORMS FOUND");
+    }
+
+    forms.forEach(form => {
+
+      console.log(
+        `[FORM ${form.index}]`
+      );
+
+      console.log(
+        `  Action: ${form.action}`
+      );
+
+      console.log(
+        `  Method: ${form.method}`
+      );
+
+      console.log(
+        `  Text: ${form.text}`
+      );
+
+      console.log("");
+    });
+
+    /*
+     * IFRAMES
+     */
+    console.log("");
+    console.log("IFRAMES");
+    console.log("----------------------------------------");
+
+    const frames =
+      page.frames();
+
+    frames.forEach((frame, index) => {
+
+      console.log(
+        `[FRAME ${index}]`
+      );
+
+      console.log(
+        `  URL: ${frame.url()}`
+      );
+
+      console.log("");
+    });
+
+    /*
+     * SAVE HTML
+     */
+    console.log("");
+    console.log("SAVING HTML...");
+    console.log("----------------------------------------");
+
+    const html =
+      await page.content();
+
+    const htmlFile =
+      path.join(
+        evidenceDir,
+        "diagnostic-o2-page.html"
+      );
+
+    fs.writeFileSync(
+      htmlFile,
+      html,
+      "utf8"
+    );
+
+    console.log(
+      `HTML saved: ${htmlFile}`
+    );
+
+    /*
+     * SCREENSHOT
+     */
+    console.log("");
+    console.log("SAVING SCREENSHOT...");
+    console.log("----------------------------------------");
+
+    const screenshotFile =
+      path.join(
+        evidenceDir,
+        `diagnostic-${safeFileTimestamp()}.png`
+      );
+
+    await page.screenshot({
+      path: screenshotFile,
+      fullPage: true
+    });
+
+    console.log(
+      `Screenshot saved: ${screenshotFile}`
+    );
+
+    /*
+     * IMPORTANT:
+     * We deliberately DO NOT submit the postcode.
+     * This is diagnostic only.
+     */
+    console.log("");
+    console.log("========================================");
+    console.log("DIAGNOSTIC COMPLETE");
+    console.log("========================================");
+    console.log("");
+    console.log(
+      "No postcode was submitted."
+    );
+    console.log(
+      "No O2 status was classified."
+    );
+    console.log(
+      "No CSV record was created."
+    );
+    console.log(
+      "No historical evidence was modified."
+    );
+    console.log("");
+
+  } catch (error) {
+
+    console.error("");
+    console.error(
+      "DIAGNOSTIC ERROR:"
+    );
+
+    console.error(
+      error
+    );
+
+    /*
+     * Capture whatever page state remains.
+     */
+    try {
+
+      const emergencyScreenshot =
+        path.join(
+          evidenceDir,
+          `diagnostic-error-${safeFileTimestamp()}.png`
+        );
+
+      await page.screenshot({
+        path: emergencyScreenshot,
+        fullPage: true
+      });
+
+      console.log(
+        `Emergency screenshot: ${emergencyScreenshot}`
+      );
+
+    } catch {
+      // Nothing else to do.
+    }
+
+    process.exitCode = 1;
+
+  } finally {
+
+    await browser.close();
+
+  }
 }
 
-function parseCsvLine(line) {
+main();function parseCsvLine(line) {
   const values = [];
   let current = "";
   let quoted = false;
