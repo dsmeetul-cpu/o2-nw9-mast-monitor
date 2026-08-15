@@ -1,6 +1,9 @@
+```html
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
+
 <meta charset="UTF-8">
 
 <meta name="viewport"
@@ -9,6 +12,7 @@
 <title>O2 NW9 0RY Network Monitor</title>
 
 <style>
+
 body {
     font-family: Arial, sans-serif;
     background: #f4f6f8;
@@ -64,11 +68,36 @@ h1 {
     color: #2e7d32;
 }
 
+.warning {
+    color: #ef6c00;
+}
+
 .info {
     margin-top: 25px;
     background: white;
     padding: 20px;
     border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+
+.error {
+    margin-top: 25px;
+    background: #ffebee;
+    border-left: 5px solid #c62828;
+    padding: 15px;
+    border-radius: 5px;
+    color: #b71c1c;
+    display: none;
+}
+
+.success {
+    margin-top: 25px;
+    background: #e8f5e9;
+    border-left: 5px solid #2e7d32;
+    padding: 15px;
+    border-radius: 5px;
+    color: #1b5e20;
+    display: none;
 }
 
 table {
@@ -87,7 +116,49 @@ td {
 th {
     background: #eee;
 }
+
+tr:hover {
+    background: #f8f8f8;
+}
+
+.status-issue {
+    color: #c62828;
+    font-weight: bold;
+}
+
+.status-ok {
+    color: #2e7d32;
+    font-weight: bold;
+}
+
+.status-unknown {
+    color: #ef6c00;
+    font-weight: bold;
+}
+
+.small {
+    color: #777;
+    font-size: 13px;
+    margin-top: 10px;
+}
+
+a {
+    color: #1565c0;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+.loading {
+    text-align: center;
+    padding: 30px;
+    color: #777;
+}
+
 </style>
+
 </head>
 
 <body>
@@ -101,54 +172,101 @@ Automated evidence collection for O2 complaint
 C-1308267357
 </div>
 
+
 <div class="cards">
 
 <div class="card">
+
 <h3>POSTCODE</h3>
+
 <strong>NW9 0RY</strong>
+
 </div>
 
+
 <div class="card">
+
 <h3>TOTAL CHECKS</h3>
+
 <strong id="total">—</strong>
+
 </div>
 
+
 <div class="card">
+
 <h3>ISSUE CHECKS</h3>
+
 <strong id="issues" class="issue">—</strong>
+
 </div>
 
+
 <div class="card">
+
 <h3>ISSUE RATE</h3>
+
 <strong id="rate">—</strong>
+
 </div>
+
 
 <div class="card">
+
 <h3>LATEST STATUS</h3>
+
 <strong id="latest">—</strong>
+
 </div>
 
 </div>
+
+
+<div id="error" class="error"></div>
+
+<div id="success" class="success"></div>
+
 
 <div class="info">
 
 <h2>Latest Checks</h2>
 
+<div class="small" id="updated">
+Loading monitor data...
+</div>
+
+
 <table>
 
 <thead>
+
 <tr>
+
 <th>Date & Time</th>
+
 <th>Status</th>
+
 <th>Result</th>
+
 <th>Screenshot</th>
+
 </tr>
+
 </thead>
 
+
 <tbody id="results">
+
 <tr>
-<td colspan="4">Loading...</td>
+
+<td colspan="4" class="loading">
+
+Loading monitor data...
+
+</td>
+
 </tr>
+
 </tbody>
 
 </table>
@@ -157,98 +275,509 @@ C-1308267357
 
 </div>
 
+
 <script>
+
+
+/*
+ * O2 NW9 0RY MONITOR DASHBOARD
+ *
+ * The dashboard is located in:
+ *
+ * dashboard/index.html
+ *
+ * The CSV is expected in:
+ *
+ * data/o2-nw9-0ry-monitor.csv
+ *
+ */
+
 
 async function loadData() {
 
-    const response =
-        await fetch("../data/o2-nw9-0ry-monitor.csv");
+    const errorBox =
+        document.getElementById("error");
 
-    const text =
-        await response.text();
+    const successBox =
+        document.getElementById("success");
 
-    const lines =
-        text.trim().split(/\r?\n/);
+    errorBox.style.display = "none";
 
-    if (lines.length <= 1) {
-        return;
-    }
+    successBox.style.display = "none";
 
-    const headers =
-        parseCSV(lines[0]);
 
-    const rows =
-        lines.slice(1).map(parseCSV);
+    /*
+     * Because GitHub Pages can run the site
+     * under a repository sub-path, construct
+     * the CSV path relative to this page.
+     */
 
-    const records =
-        rows.map(row => {
+    const csvUrl =
+        new URL(
+            "../data/o2-nw9-0ry-monitor.csv",
+            window.location.href
+        ).href;
 
-            const obj = {};
 
-            headers.forEach((header, i) => {
-                obj[header] = row[i] || "";
+    try {
+
+        const response =
+            await fetch(
+                csvUrl + "?t=" + Date.now(),
+                {
+                    cache: "no-store"
+                }
+            );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                "CSV returned HTTP " +
+                response.status +
+                " (" +
+                response.statusText +
+                ")"
+            );
+
+        }
+
+
+        const text =
+            await response.text();
+
+
+        if (!text.trim()) {
+
+            throw new Error(
+                "The CSV file is empty."
+            );
+
+        }
+
+
+        const lines =
+            text
+                .trim()
+                .split(/\r?\n/);
+
+
+        if (lines.length <= 1) {
+
+            throw new Error(
+                "The CSV contains a header but no monitoring records."
+            );
+
+        }
+
+
+        const headers =
+            parseCSV(lines[0]);
+
+
+        const rows =
+            lines
+                .slice(1)
+                .map(parseCSV);
+
+
+        const records =
+            rows
+                .filter(row =>
+                    row.some(
+                        value =>
+                            value.trim() !== ""
+                    )
+                )
+                .map(row => {
+
+                    const obj = {};
+
+                    headers.forEach(
+                        (header, i) => {
+
+                            obj[header.trim()] =
+                                row[i] !== undefined
+                                    ? row[i]
+                                    : "";
+
+                        }
+                    );
+
+                    return obj;
+
+                });
+
+
+        if (records.length === 0) {
+
+            throw new Error(
+                "No monitoring records were found in the CSV."
+            );
+
+        }
+
+
+        /*
+         * Count ISSUE records.
+         */
+
+        const issues =
+            records.filter(record =>
+
+                String(
+                    record["O2 Status"] || ""
+                )
+                .trim()
+                .toUpperCase() === "ISSUE"
+
+            );
+
+
+        /*
+         * Update summary cards.
+         */
+
+        document.getElementById("total")
+            .textContent =
+            records.length;
+
+
+        document.getElementById("issues")
+            .textContent =
+            issues.length;
+
+
+        document.getElementById("rate")
+            .textContent =
+            records.length > 0
+                ? (
+                    (issues.length /
+                    records.length) *
+                    100
+                ).toFixed(1) + "%"
+                : "0%";
+
+
+        /*
+         * Latest record.
+         */
+
+        const latest =
+            records[records.length - 1];
+
+
+        const latestStatus =
+            String(
+                latest["O2 Status"] || "UNKNOWN"
+            )
+            .trim();
+
+
+        const latestElement =
+            document.getElementById("latest");
+
+
+        latestElement.textContent =
+            latestStatus;
+
+
+        latestElement.className = "";
+
+
+        if (
+            latestStatus.toUpperCase()
+            === "ISSUE"
+        ) {
+
+            latestElement.classList.add(
+                "issue"
+            );
+
+        } else if (
+            latestStatus.toUpperCase()
+            === "OK"
+        ) {
+
+            latestElement.classList.add(
+                "ok"
+            );
+
+        } else {
+
+            latestElement.classList.add(
+                "warning"
+            );
+
+        }
+
+
+        /*
+         * Display latest 25 checks.
+         */
+
+        const tbody =
+            document.getElementById(
+                "results"
+            );
+
+
+        tbody.innerHTML = "";
+
+
+        records
+            .slice(-25)
+            .reverse()
+            .forEach(record => {
+
+                const tr =
+                    document.createElement("tr");
+
+
+                const dateTime =
+                    record["Date & Time"] || "";
+
+
+                const status =
+                    record["O2 Status"] || "";
+
+
+                const result =
+                    record["Check Result"] || "";
+
+
+                const screenshot =
+                    record["Screenshot"] || "";
+
+
+                const statusUpper =
+                    status
+                        .trim()
+                        .toUpperCase();
+
+
+                let statusClass =
+                    "status-unknown";
+
+
+                if (
+                    statusUpper === "ISSUE"
+                ) {
+
+                    statusClass =
+                        "status-issue";
+
+                } else if (
+                    statusUpper === "OK"
+                ) {
+
+                    statusClass =
+                        "status-ok";
+
+                }
+
+
+                let screenshotHtml =
+                    "—";
+
+
+                if (
+                    screenshot.trim() !== ""
+                ) {
+
+                    /*
+                     * Remove a leading slash so
+                     * the link works correctly on
+                     * GitHub Pages project sites.
+                     */
+
+                    const cleanPath =
+                        screenshot
+                            .trim()
+                            .replace(
+                                /^\/+/,
+                                ""
+                            );
+
+
+                    const screenshotUrl =
+                        new URL(
+                            "../" +
+                            cleanPath,
+                            window.location.href
+                        ).href;
+
+
+                    screenshotHtml =
+
+                        '<a href="' +
+                        escapeHtml(
+                            screenshotUrl
+                        ) +
+                        '" target="_blank">' +
+                        'Evidence' +
+                        '</a>';
+
+                }
+
+
+                tr.innerHTML =
+
+                    "<td>" +
+                    escapeHtml(
+                        dateTime
+                    ) +
+                    "</td>" +
+
+                    '<td class="' +
+                    statusClass +
+                    '">' +
+                    escapeHtml(
+                        status
+                    ) +
+                    "</td>" +
+
+                    "<td>" +
+                    escapeHtml(
+                        result
+                    ) +
+                    "</td>" +
+
+                    "<td>" +
+                    screenshotHtml +
+                    "</td>";
+
+
+                tbody.appendChild(tr);
+
             });
 
-            return obj;
 
-        });
+        /*
+         * Dashboard update information.
+         */
 
-    const issues =
-        records.filter(
-            r => r["O2 Status"] === "ISSUE"
+        document.getElementById(
+            "updated"
+        ).textContent =
+
+            "Showing " +
+            Math.min(
+                records.length,
+                25
+            ) +
+            " of " +
+            records.length +
+            " recorded checks. " +
+
+            "Latest check: " +
+            (
+                latest["Date & Time"]
+                || "Unknown"
+            );
+
+
+        /*
+         * Success message.
+         */
+
+        successBox.textContent =
+            "Monitor data loaded successfully: " +
+            records.length +
+            " checks found.";
+
+
+        successBox.style.display =
+            "block";
+
+    }
+
+
+    catch (error) {
+
+        console.error(
+            "O2 monitor error:",
+            error
         );
 
-    document.getElementById("total")
-        .textContent = records.length;
 
-    document.getElementById("issues")
-        .textContent = issues.length;
+        /*
+         * IMPORTANT:
+         *
+         * Do NOT silently show zero.
+         *
+         * If GitHub Pages cannot access
+         * the CSV, show the actual error.
+         */
 
-    document.getElementById("rate")
-        .textContent =
-        records.length
-            ? ((issues.length / records.length) * 100)
-                .toFixed(1) + "%"
-            : "0%";
+        errorBox.innerHTML =
 
-    const latest =
-        records[records.length - 1];
+            "<strong>Unable to load monitor data.</strong><br><br>" +
 
-    document.getElementById("latest")
-        .textContent =
-        latest["O2 Status"];
+            escapeHtml(
+                error.message
+            ) +
 
-    const tbody =
-        document.getElementById("results");
+            "<br><br>" +
 
-    tbody.innerHTML = "";
+            "<strong>CSV requested:</strong><br>" +
 
-    records
-        .slice(-25)
-        .reverse()
-        .forEach(record => {
+            escapeHtml(
+                csvUrl
+            );
 
-            const tr =
-                document.createElement("tr");
 
-            const screenshot =
-                record["Screenshot"];
+        errorBox.style.display =
+            "block";
 
-            tr.innerHTML = `
-                <td>${escapeHtml(record["Date & Time"])}</td>
-                <td>${escapeHtml(record["O2 Status"])}</td>
-                <td>${escapeHtml(record["Check Result"])}</td>
-                <td>
-                    <a href="../${escapeHtml(screenshot)}">
-                    Evidence
-                    </a>
-                </td>
-            `;
 
-            tbody.appendChild(tr);
+        document.getElementById(
+            "total"
+        ).textContent = "ERROR";
 
-        });
+
+        document.getElementById(
+            "issues"
+        ).textContent = "ERROR";
+
+
+        document.getElementById(
+            "rate"
+        ).textContent = "ERROR";
+
+
+        document.getElementById(
+            "latest"
+        ).textContent = "ERROR";
+
+
+        document.getElementById(
+            "results"
+        ).innerHTML =
+
+            '<tr>' +
+
+            '<td colspan="4">' +
+
+            '<strong>Monitor data could not be loaded.</strong>' +
+
+            '</td>' +
+
+            '</tr>';
+
+    }
+
 }
+
+
+/*
+ * Simple CSV parser.
+ *
+ * Handles:
+ * - commas
+ * - quoted fields
+ * - escaped quotes
+ */
 
 function parseCSV(line) {
 
@@ -258,13 +787,16 @@ function parseCSV(line) {
 
     let quoted = false;
 
+
     for (
         let i = 0;
         i < line.length;
         i++
     ) {
 
-        const char = line[i];
+        const char =
+            line[i];
+
 
         if (char === '"') {
 
@@ -279,20 +811,29 @@ function parseCSV(line) {
 
             } else {
 
-                quoted = !quoted;
+                quoted =
+                    !quoted;
 
             }
 
-        } else if (
+        }
+
+
+        else if (
             char === "," &&
             !quoted
         ) {
 
-            result.push(current);
+            result.push(
+                current
+            );
 
             current = "";
 
-        } else {
+        }
+
+
+        else {
 
             current += char;
 
@@ -300,25 +841,73 @@ function parseCSV(line) {
 
     }
 
-    result.push(current);
+
+    result.push(
+        current
+    );
+
 
     return result;
+
 }
+
+
+/*
+ * Prevent CSV content from being
+ * interpreted as HTML.
+ */
 
 function escapeHtml(value) {
 
-    return value
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;")
-        .replace(/'/g, "&#039;");
+    return String(
+        value || ""
+    )
+    .replace(
+        /&/g,
+        "&amp;"
+    )
+    .replace(
+        /</g,
+        "&lt;"
+    )
+    .replace(
+        />/g,
+        "&gt;"
+    )
+    .replace(
+        /"/g,
+        "&quot;"
+    )
+    .replace(
+        /'/g,
+        "&#039;"
+    );
 
 }
 
+
+/*
+ * Initial load.
+ */
+
 loadData();
+
+
+/*
+ * Refresh dashboard every 5 minutes.
+ *
+ * This does NOT affect the hourly
+ * monitoring GitHub Action.
+ */
+
+setInterval(
+    loadData,
+    5 * 60 * 1000
+);
 
 </script>
 
 </body>
+
 </html>
+```
