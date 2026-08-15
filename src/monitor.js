@@ -19,8 +19,6 @@ const csvFile = path.join(dataDir, "o2-nw9-0ry-monitor.csv");
 const xlsxFile = path.join(dataDir, "O2-NW9-0RY-Evidence.xlsx");
 
 function londonTimestamp() {
-  const now = new Date();
-
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London",
     year: "numeric",
@@ -30,11 +28,592 @@ function londonTimestamp() {
     minute: "2-digit",
     second: "2-digit",
     hour12: false
-  }).format(now);
+  }).format(new Date());
 }
 
 function safeFileTimestamp() {
-  const now = new Date();
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  }).formatToParts(new Date());
+
+  const get = name =>
+    parts.find(p => p.type === name)?.value;
+
+  return `${get("year")}-${get("month")}-${get("day")}_${get("hour")}-${get("minute")}-${get("second")}`;
+}
+
+function csvEscape(value) {
+  if (value === null || value === undefined) return "";
+
+  const text = String(value).replace(/\r?\n/g, " ");
+
+  return /[",]/.test(text)
+    ? `"${text.replace(/"/g, '""')}"`
+    : text;
+}
+
+function parseCsvLine(line) {
+  const values = [];
+  let current = "";
+  let quoted = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+
+    if (char === '"') {
+      if (quoted && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (char === "," && !quoted) {
+      values.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+
+  values.push(current);
+
+  return values;
+}
+
+function readExistingCsv() {
+  if (!fs.existsSync(csvFile)) return [];
+
+  const text = fs.readFileSync(csvFile, "utf8").trim();
+
+  if (!text) return [];
+
+  const lines = text.split(/\r?\n/);
+
+  const headers = parseCsvLine(lines[0]);
+
+  return lines.slice(1).map(line => {
+    const values = parseCsvLine(line);
+    const row = {};
+
+    headers.forEach((header, index) => {
+      row[header] = values[index] ?? "";
+    });
+
+    return row;
+  });
+}
+
+async function findNetworkCheckerLink(page) {
+  const candidates = [
+    'a:has-text("network status checker")',
+    'a:has-text("network status")',
+    'a:has-text("Network Issues")',
+    'a:has-text("network checker")',
+    'a[href*="network"]'
+  ];
+
+  for (const selector of candidates) {
+    const locator = page.locator(selector);
+
+    const count = await locator.count();
+
+    for (let i = 0; i < count; i++) {
+      const link = locator.nth(i);
+
+      try {
+        if (await link.isVisible()) {
+          const href = await link.getAttribute("href");
+
+          if (href) {
+            return href;
+          }
+        }
+      } catch {
+        // Continue searching.
+      }
+    }
+  }
+
+  return null;
+}
+
+async function findPostcodeInput(page) {
+  const candidates = [
+    'input[placeholder*="postcode" i]',
+    'input[aria-label*="postcode" i]',
+    'input[name*="postcode" i]',
+    'input[id*="postcode" i]',
+    'input[placeholder*="post code" i]',
+    'input[aria-label*="post code" i]',
+    'input[name*="post code" i]',
+    'input[id*="post code" i]',
+    'input[type="text"]'
+  ];
+
+  for (const selector of candidates) {
+    const locator = page.locator(selector);
+
+    const count = await locator.count();
+
+    for (let i = 0; i < count; i++) {
+      const input = locator.nth(i);
+
+      try {
+        if (await input.isVisible()) {
+          return input;
+        }
+      } catch {
+        // Continue.
+      }
+    }
+  }
+
+  return null;
+}
+
+async function findSubmitButton(page) {
+  const candidates = [
+    'button:has-text("Check")',
+    'button:has-text("Search")',
+    'button:has-text("Submit")',
+    'button:has-text("Find")',
+    'button:has-text("Continue")',
+    'input[type="submit"]',
+    'button'
+  ];
+
+  for (const selector of candidates) {
+    const locator = page.locator(selector);
+
+    const count = await locator.count();
+
+    for (let i = 0; i < count; i++) {
+      const button = locator.nth(i);
+
+      try {
+        if (await button.isVisible()) {
+          return button;
+        }
+      } catch {
+        // Continue.
+      }
+    }
+  }
+
+  return null;
+}
+
+function classifyStatus(text) {
+  const lower = text.toLowerCase();
+
+  const issuePatterns = [
+    "issue",
+    "problem",
+    "outage",
+    "not working",
+    "fault",
+    "maintenance",
+    "engineer",
+    "service disruption",
+    "network disruption",
+    "affected"
+  ];
+
+  const okPatterns = [
+    "working normally",
+    "no known",
+    "no issues",
+    "no issue",
+    "no problems",
+    "everything is working"
+  ];
+
+  if (issuePatterns.some(x => lower.includes(x))) {
+    return "ISSUE";
+  }
+
+  if (okPatterns.some(x => lower.includes(x))) {
+    return "OK";
+  }
+
+  return "UNKNOWN";
+}
+
+async function main() {
+  const browser = await chromium.launch({
+    headless: true
+  });
+
+  const context = await browser.newContext({
+    locale: "en-GB",
+    timezoneId: "Europe/London",
+    viewport: {
+      width: 1440,
+      height: 1200
+    }
+  });
+
+  const page = await context.newPage();
+
+  const timestamp = londonTimestamp();
+  const fileTimestamp = safeFileTimestamp();
+
+  let status = "UNKNOWN";
+  let message = "";
+  let expectedResolution = "";
+  let checkResult = "FAILED";
+
+  try {
+    console.log("Opening O2 status page...");
+
+    await page.goto(O2_URL, {
+      waitUntil: "domcontentloaded",
+      timeout: 60000
+    });
+
+    await page.waitForTimeout(3000);
+
+    console.log("Looking for O2 network status checker...");
+
+    const checkerHref =
+      await findNetworkCheckerLink(page);
+
+    if (!checkerHref) {
+      throw new Error(
+        "Could not find O2 network status checker link."
+      );
+    }
+
+    const checkerUrl =
+      new URL(
+        checkerHref,
+        O2_URL
+      ).href;
+
+    console.log(
+      `Network checker found: ${checkerUrl}`
+    );
+
+    await page.goto(checkerUrl, {
+      waitUntil: "domcontentloaded",
+      timeout: 60000
+    });
+
+    await page.waitForTimeout(5000);
+
+    console.log(
+      "Looking for postcode input..."
+    );
+
+    let postcodeInput =
+      await findPostcodeInput(page);
+
+    if (!postcodeInput) {
+      /*
+       * Some modern O2 journeys may load
+       * their content dynamically.
+       */
+
+      await page.waitForTimeout(5000);
+
+      postcodeInput =
+        await findPostcodeInput(page);
+    }
+
+    if (!postcodeInput) {
+      throw new Error(
+        "Could not find postcode input on O2 network status checker."
+      );
+    }
+
+    console.log(
+      "Postcode input found."
+    );
+
+    await postcodeInput.fill(POSTCODE);
+
+    const submitButton =
+      await findSubmitButton(page);
+
+    if (submitButton) {
+      console.log(
+        "Submitting postcode..."
+      );
+
+      await submitButton.click();
+    } else {
+      console.log(
+        "No submit button found; pressing Enter..."
+      );
+
+      await postcodeInput.press("Enter");
+    }
+
+    await page.waitForTimeout(8000);
+
+    const pageText =
+      await page.locator("body").innerText();
+
+    const cleanText =
+      pageText
+        .replace(/\s+/g, " ")
+        .trim();
+
+    status =
+      classifyStatus(cleanText);
+
+    message =
+      cleanText.slice(0, 5000);
+
+    const resolutionMatch =
+      pageText.match(
+        /(?:expected|estimated|should|aim).*?(?:resolved|fixed).*?(\d{1,2}[:.]\d{2}|\d{1,2}\s?(?:am|pm)|\d{1,2}\/\d{1,2}\/\d{2,4})/i
+      );
+
+    if (resolutionMatch) {
+      expectedResolution =
+        resolutionMatch[0];
+    }
+
+    checkResult = "SUCCESS";
+
+    console.log(
+      `O2 status classified as: ${status}`
+    );
+
+  } catch (error) {
+    status = "UNKNOWN";
+
+    message =
+      `MONITORING ERROR: ${error.message}`;
+
+    checkResult = "FAILED";
+
+    console.error(message);
+  }
+
+  const screenshotName =
+    `${fileTimestamp}_NW9-0RY.png`;
+
+  const screenshotPath =
+    path.join(
+      evidenceDir,
+      screenshotName
+    );
+
+  await page.screenshot({
+    path: screenshotPath,
+    fullPage: true
+  });
+
+  const existing =
+    readExistingCsv();
+
+  const previous =
+    existing.length
+      ? existing[existing.length - 1]
+      : null;
+
+  const statusChanged =
+    !previous ||
+    previous["O2 Status"] !== status
+      ? "YES"
+      : "NO";
+
+  const record = {
+    "Date":
+      timestamp.split(",")[0],
+
+    "Time":
+      timestamp.split(",")[1]?.trim()
+      || timestamp,
+
+    "Date & Time":
+      timestamp,
+
+    "Postcode":
+      POSTCODE,
+
+    "O2 Status":
+      status,
+
+    "O2 Message":
+      message,
+
+    "Expected Resolution":
+      expectedResolution,
+
+    "Complaint Reference":
+      COMPLAINT_REFERENCE,
+
+    "Source URL":
+      O2_URL,
+
+    "Screenshot":
+      `evidence/${screenshotName}`,
+
+    "Check Result":
+      checkResult,
+
+    "Status Changed?":
+      statusChanged,
+
+    "Previous Status":
+      previous?.["O2 Status"] || "",
+
+    "Notes":
+      ""
+  };
+
+  const headers =
+    Object.keys(record);
+
+  if (!fs.existsSync(csvFile)) {
+    fs.writeFileSync(
+      csvFile,
+      headers
+        .map(csvEscape)
+        .join(",") +
+        "\n",
+      "utf8"
+    );
+  }
+
+  fs.appendFileSync(
+    csvFile,
+    headers
+      .map(h => csvEscape(record[h]))
+      .join(",") +
+      "\n",
+    "utf8"
+  );
+
+  const allRecords =
+    [...existing, record];
+
+  const worksheet =
+    XLSX.utils.json_to_sheet(
+      allRecords
+    );
+
+  worksheet["!cols"] = [
+    { wch: 14 },
+    { wch: 12 },
+    { wch: 24 },
+    { wch: 14 },
+    { wch: 18 },
+    { wch: 80 },
+    { wch: 30 },
+    { wch: 20 },
+    { wch: 22 },
+    { wch: 55 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 18 },
+    { wch: 30 }
+  ];
+
+  const workbook =
+    XLSX.utils.book_new();
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    worksheet,
+    "O2 Mast Log"
+  );
+
+  const summary =
+    XLSX.utils.aoa_to_sheet([
+      ["O2 NW9 0RY NETWORK EVIDENCE"],
+      [],
+      ["Postcode", POSTCODE],
+      [
+        "Complaint Reference",
+        COMPLAINT_REFERENCE
+      ],
+      [
+        "Monitoring Source",
+        O2_URL
+      ],
+      [
+        "Total Checks",
+        allRecords.length
+      ],
+      [
+        "Issue Checks",
+        allRecords.filter(
+          x => x["O2 Status"] === "ISSUE"
+        ).length
+      ],
+      [
+        "OK Checks",
+        allRecords.filter(
+          x => x["O2 Status"] === "OK"
+        ).length
+      ],
+      [
+        "Unknown Checks",
+        allRecords.filter(
+          x => x["O2 Status"] === "UNKNOWN"
+        ).length
+      ],
+      [
+        "Failed Checks",
+        allRecords.filter(
+          x => x["Check Result"] === "FAILED"
+        ).length
+      ],
+      [],
+      [
+        "Important",
+        "Screenshots are stored in the evidence folder and provide visual evidence of each check."
+      ]
+    ]);
+
+  summary["!cols"] = [
+    { wch: 30 },
+    { wch: 100 }
+  ];
+
+  XLSX.utils.book_append_sheet(
+    workbook,
+    summary,
+    "Summary"
+  );
+
+  XLSX.writeFile(
+    workbook,
+    xlsxFile
+  );
+
+  await browser.close();
+
+  console.log(
+    JSON.stringify(
+      {
+        timestamp,
+        postcode: POSTCODE,
+        status,
+        screenshot: screenshotName,
+        checkResult
+      },
+      null,
+      2
+    )
+  );
+}
+
+main().catch(error => {
+  console.error(error);
+  process.exit(1);
+});  const now = new Date();
 
   const parts = new Intl.DateTimeFormat("en-GB", {
     timeZone: "Europe/London",
