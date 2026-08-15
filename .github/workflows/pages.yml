@@ -1,40 +1,45 @@
 name: Deploy O2 NW9 Dashboard
 
 on:
-push:
-branches:
-- main
-workflow_dispatch:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
-contents: read
-pages: write
-id-token: write
+  contents: read
+  pages: write
+  id-token: write
 
 concurrency:
-group: pages
-cancel-in-progress: false
+  group: pages
+  cancel-in-progress: false
 
 jobs:
-deploy:
-runs-on: ubuntu-latest
+  deploy:
+    runs-on: ubuntu-latest
 
-```
-environment:
-  name: github-pages
-  url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
 
-steps:
-  - name: Checkout
-    uses: actions/checkout@v5
+      - name: Setup Pages
+        uses: actions/configure-pages@v6
 
-  - name: Setup Pages
-    uses: actions/configure-pages@v6
+      - name: Prepare site
+        run: |
+          mkdir -p _site
+          cp -R dashboard/. _site/
+          cp -R data _site/data
+          if [ -d evidence ]; then cp -R evidence _site/evidence; fi
 
-  - name: Prepare site
-    run: |
-      mkdir -p _site
-      cp -R dashboard/. _site/
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v5      cp -R dashboard/. _site/
       cp -R data _site/data
       cp -R evidence _site/evidence
 
