@@ -12,103 +12,183 @@
 
 <style>
 
+* {
+    box-sizing: border-box;
+}
+
 body {
-    font-family: Arial, sans-serif;
-    background: #f4f6f8;
+    font-family:
+        -apple-system,
+        BlinkMacSystemFont,
+        "Segoe UI",
+        Arial,
+        sans-serif;
+
+    background: #f3f5f7;
     margin: 0;
-    padding: 30px;
-    color: #222;
+    padding: 25px;
+    color: #1f2933;
 }
 
 .container {
-    max-width: 1200px;
+    max-width: 1250px;
     margin: auto;
 }
 
+/* HEADER */
+
+.header {
+    background: white;
+    border-radius: 14px;
+    padding: 25px;
+    margin-bottom: 20px;
+
+    box-shadow:
+        0 3px 12px rgba(0,0,0,.08);
+}
+
 h1 {
-    margin-bottom: 5px;
+    margin: 0 0 6px 0;
+    font-size: 30px;
 }
 
 .subtitle {
-    color: #666;
-    margin-bottom: 20px;
+    color: #667085;
+    margin-bottom: 8px;
 }
+
+.reference {
+    color: #667085;
+    font-size: 14px;
+}
+
+/* ACTION BUTTONS */
 
 .actions {
     display: flex;
-    gap: 12px;
     flex-wrap: wrap;
-    margin-bottom: 25px;
+    gap: 10px;
+    margin-top: 22px;
 }
 
 button,
-.action-button {
+.action-link {
 
     border: none;
 
-    padding: 13px 20px;
-
     border-radius: 8px;
 
-    font-size: 15px;
+    padding: 12px 18px;
 
-    font-weight: bold;
+    font-size: 14px;
+
+    font-weight: 700;
 
     cursor: pointer;
 
     text-decoration: none;
 
-    display: inline-block;
+    display: inline-flex;
 
+    align-items: center;
+
+    justify-content: center;
+
+    transition:
+        transform .1s ease,
+        opacity .1s ease;
+}
+
+button:hover,
+.action-link:hover {
+    transform: translateY(-1px);
+    opacity: .9;
+}
+
+button:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+    transform: none;
 }
 
 .check-button {
-
-    background: #0070c9;
-
+    background: #d71920;
     color: white;
-
-}
-
-.check-button:hover {
-    background: #005fa8;
 }
 
 .refresh-button {
-
-    background: #555;
-
+    background: #0070c9;
     color: white;
-
 }
 
-.refresh-button:hover {
-    background: #333;
+.secondary {
+    background: #e8edf2;
+    color: #263238;
 }
 
-.status-message {
+.success-button {
+    background: #16803c;
+    color: white;
+}
 
-    margin-top: 10px;
+.dark-button {
+    background: #263238;
+    color: white;
+}
 
-    padding: 12px 15px;
+/* MESSAGE */
 
-    background: white;
-
-    border-radius: 8px;
+#message {
 
     display: none;
 
+    margin-top: 18px;
+
+    padding: 14px 16px;
+
+    border-radius: 8px;
+
+    font-size: 14px;
+
+    line-height: 1.5;
 }
+
+.message-info {
+    display: block !important;
+    background: #e8f1fb;
+    color: #174a7e;
+}
+
+.message-success {
+    display: block !important;
+    background: #e8f7ee;
+    color: #176b36;
+}
+
+.message-warning {
+    display: block !important;
+    background: #fff4dc;
+    color: #855b00;
+}
+
+.message-error {
+    display: block !important;
+    background: #fdecec;
+    color: #9b1c1c;
+}
+
+/* CARDS */
 
 .cards {
 
     display: grid;
 
     grid-template-columns:
-        repeat(auto-fit, minmax(200px, 1fr));
+        repeat(auto-fit, minmax(180px, 1fr));
 
     gap: 15px;
 
+    margin-bottom: 20px;
 }
 
 .card {
@@ -117,27 +197,30 @@ button,
 
     padding: 20px;
 
-    border-radius: 10px;
+    border-radius: 12px;
 
     box-shadow:
-        0 2px 8px rgba(0,0,0,.08);
-
+        0 3px 12px rgba(0,0,0,.07);
 }
 
 .card h3 {
 
-    margin-top: 0;
+    margin: 0 0 10px 0;
 
-    color: #666;
+    color: #667085;
 
-    font-size: 14px;
+    font-size: 12px;
 
+    letter-spacing: .6px;
 }
 
 .card strong {
 
+    display: block;
+
     font-size: 28px;
 
+    word-break: break-word;
 }
 
 .issue {
@@ -145,37 +228,41 @@ button,
 }
 
 .ok {
-    color: #2e7d32;
+    color: #16803c;
 }
 
 .unknown {
-    color: #ef6c00;
+    color: #9a6700;
 }
 
-.info {
+.failed {
+    color: #c62828;
+}
 
-    margin-top: 25px;
+/* CONTENT */
+
+.info {
 
     background: white;
 
     padding: 20px;
 
-    border-radius: 10px;
+    border-radius: 12px;
 
+    box-shadow:
+        0 3px 12px rgba(0,0,0,.07);
+
+    margin-bottom: 20px;
 }
 
-.message-box {
+.info h2 {
+    margin-top: 0;
+}
 
-    background: #f8f9fa;
+/* TABLE */
 
-    border-left: 4px solid #0070c9;
-
-    padding: 15px;
-
-    margin-top: 15px;
-
-    line-height: 1.5;
-
+.table-wrapper {
+    overflow-x: auto;
 }
 
 table {
@@ -186,42 +273,157 @@ table {
 
     margin-top: 15px;
 
+    font-size: 14px;
 }
 
 th,
 td {
 
-    padding: 10px;
+    padding: 11px;
 
     border-bottom:
-        1px solid #ddd;
+        1px solid #e5e7eb;
 
     text-align: left;
 
+    vertical-align: middle;
 }
 
 th {
 
-    background: #eee;
+    background: #f1f3f5;
 
+    font-size: 12px;
+
+    text-transform: uppercase;
+
+    letter-spacing: .4px;
+}
+
+tr:hover td {
+    background: #fafafa;
+}
+
+.status {
+    font-weight: 700;
+}
+
+.status-issue {
+    color: #c62828;
+}
+
+.status-ok {
+    color: #16803c;
+}
+
+.status-unknown {
+    color: #9a6700;
+}
+
+.result-success {
+
+    color: #16803c;
+
+    font-weight: 700;
+}
+
+.result-failed {
+
+    color: #c62828;
+
+    font-weight: 700;
 }
 
 a {
-    color: #0066cc;
+
+    color: #006bcf;
+
+    text-decoration: none;
+
+    font-weight: 600;
 }
 
-.loading {
-    opacity: .6;
+a:hover {
+    text-decoration: underline;
+}
+
+/* SPINNER */
+
+.spinner {
+
+    display: inline-block;
+
+    width: 14px;
+
+    height: 14px;
+
+    border: 2px solid rgba(255,255,255,.4);
+
+    border-top-color: white;
+
+    border-radius: 50%;
+
+    animation: spin .8s linear infinite;
+
+    margin-right: 7px;
+}
+
+@keyframes spin {
+
+    to {
+        transform: rotate(360deg);
+    }
+
+}
+
+/* FOOTER */
+
+.footer {
+
+    text-align: center;
+
+    color: #7b8794;
+
+    font-size: 12px;
+
+    padding: 15px;
+}
+
+/* MOBILE */
+
+@media (max-width: 650px) {
+
+    body {
+        padding: 12px;
+    }
+
+    h1 {
+        font-size: 23px;
+    }
+
+    .actions {
+        flex-direction: column;
+    }
+
+    button,
+    .action-link {
+        width: 100%;
+    }
+
 }
 
 </style>
 
 </head>
 
-
 <body>
 
 <div class="container">
+
+
+<!-- HEADER -->
+
+<div class="header">
 
 <h1>
 O2 NW9 0RY Network Monitor
@@ -230,36 +432,104 @@ O2 NW9 0RY Network Monitor
 <div class="subtitle">
 
 Automated evidence collection for O2 complaint
+
+<strong>
 C-1308267357
+</strong>
+
+</div>
+
+<div class="reference">
+
+Monitoring:
+
+<a
+href="https://status.o2.co.uk/"
+target="_blank"
+rel="noopener">
+
+O2 Service Status
+
+</a>
 
 </div>
 
 
 <div class="actions">
 
-<a
-    class="action-button check-button"
-    href="https://github.com/dsmeetul-cpu/o2-nw9-mast-monitor/actions/workflows/o2-monitor.yml"
-    target="_blank"
->
-    🔍 CHECK O2 NOW
-</a>
+
+<!-- REAL ONE-CLICK CHECK -->
 
 <button
-    class="refresh-button"
-    onclick="loadData()"
->
-    ↻ REFRESH RESULTS
+id="checkButton"
+class="check-button"
+onclick="checkO2Now()">
+
+🔴 CHECK O2 NOW
+
 </button>
+
+
+<!-- REFRESH -->
+
+<button
+class="refresh-button"
+onclick="refreshData()">
+
+🔄 REFRESH DATA
+
+</button>
+
+
+<!-- CSV -->
+
+<a
+class="action-link secondary"
+href="../data/o2-nw9-0ry-monitor.csv"
+target="_blank"
+rel="noopener">
+
+📊 VIEW CSV
+
+</a>
+
+
+<!-- EXCEL -->
+
+<a
+class="action-link success-button"
+href="../data/O2-NW9-0RY-Evidence.xlsx"
+target="_blank"
+rel="noopener">
+
+📥 EVIDENCE WORKBOOK
+
+</a>
+
+
+<!-- O2 -->
+
+<a
+class="action-link dark-button"
+href="https://status.o2.co.uk/"
+target="_blank"
+rel="noopener">
+
+🌐 OPEN O2 STATUS
+
+</a>
+
 
 </div>
 
 
-<div
-    id="statusMessage"
-    class="status-message"
-></div>
+<div id="message"></div>
 
+
+</div>
+
+
+<!-- SUMMARY -->
 
 <div class="cards">
 
@@ -288,13 +558,44 @@ NW9 0RY
 
 <div class="card">
 
+<h3>SUCCESSFUL CHECKS</h3>
+
+<strong
+id="successful"
+class="ok">
+
+—
+
+</strong>
+
+</div>
+
+
+<div class="card">
+
+<h3>FAILED CHECKS</h3>
+
+<strong
+id="failed"
+class="failed">
+
+—
+
+</strong>
+
+</div>
+
+
+<div class="card">
+
 <h3>ISSUE CHECKS</h3>
 
 <strong
-    id="issues"
-    class="issue"
->
+id="issues"
+class="issue">
+
 —
+
 </strong>
 
 </div>
@@ -316,10 +617,11 @@ NW9 0RY
 <h3>LATEST STATUS</h3>
 
 <strong
-    id="latest"
-    class="unknown"
->
+id="latest"
+class="unknown">
+
 —
+
 </strong>
 
 </div>
@@ -328,27 +630,24 @@ NW9 0RY
 </div>
 
 
-<div class="info">
-
-<h2>
-Latest O2 Information
-</h2>
-
-<div
-    id="latestMessage"
-    class="message-box"
->
-Loading...
-</div>
-
-</div>
-
+<!-- CHECK INFORMATION -->
 
 <div class="info">
 
 <h2>
 Latest Checks
 </h2>
+
+<div
+id="summaryText"
+style="color:#667085;margin-bottom:10px;">
+
+Loading monitor data...
+
+</div>
+
+
+<div class="table-wrapper">
 
 <table>
 
@@ -372,6 +671,10 @@ Result
 Screenshot
 </th>
 
+<th>
+Notes
+</th>
+
 </tr>
 
 </thead>
@@ -381,7 +684,7 @@ Screenshot
 
 <tr>
 
-<td colspan="4">
+<td colspan="5">
 Loading monitor data...
 </td>
 
@@ -393,265 +696,402 @@ Loading monitor data...
 
 </div>
 
+</div>
+
+
+<!-- EVIDENCE -->
+
+<div class="info">
+
+<h2>
+Evidence Integrity
+</h2>
+
+<p>
+
+<strong>SUCCESS</strong> means the automated monitor
+found the O2 postcode checker, entered
+<strong>NW9 0RY</strong>, submitted it and captured
+the resulting O2 page.
+
+</p>
+
+<p>
+
+<strong>FAILED</strong> means the automation did not
+complete the O2 check. A failed check is not counted
+as evidence of an O2 outage.
+
+</p>
+
+<p>
+
+The timestamped O2 result screenshot is the primary
+evidence.
+
+</p>
+
+</div>
+
+
+<div class="footer">
+
+O2 NW9 0RY Network Monitor
+
+<br>
+
+Complaint reference:
+C-1308267357
+
+<br>
+
+Automated monitoring — Europe/London
+
+</div>
+
 
 </div>
 
 
 <script>
 
+
+/*
+========================================================
+CONFIGURATION
+========================================================
+*/
+
+
 const CSV_URL =
-    "./data/o2-nw9-0ry-monitor.csv";
+    "../data/o2-nw9-0ry-monitor.csv";
 
 
-async function loadData() {
+/*
+IMPORTANT:
+Replace this after deploying the Worker.
 
-    const statusMessage =
+Example:
+
+https://o2-monitor-trigger.YOUR-NAME.workers.dev
+
+*/
+
+const TRIGGER_URL =
+    "https://REPLACE-WITH-YOUR-CLOUDFLARE-WORKER.workers.dev";
+
+
+/*
+========================================================
+MESSAGE
+========================================================
+*/
+
+function showMessage(
+    text,
+    type = "info"
+) {
+
+    const element =
+        document.getElementById("message");
+
+    element.className = "";
+
+    element.textContent = text;
+
+    element.classList.add(
+        type === "success"
+            ? "message-success"
+
+            : type === "warning"
+            ? "message-warning"
+
+            : type === "error"
+            ? "message-error"
+
+            : "message-info"
+    );
+}
+
+
+/*
+========================================================
+CHECK O2 NOW
+========================================================
+*/
+
+async function checkO2Now() {
+
+    const button =
         document.getElementById(
-            "statusMessage"
+            "checkButton"
         );
+
+
+    /*
+    Prevent double clicks.
+    */
+
+    button.disabled = true;
+
+    button.innerHTML =
+        `<span class="spinner"></span> STARTING O2 CHECK...`;
+
+
+    showMessage(
+        "Starting a live O2 network check for NW9 0RY...",
+        "info"
+    );
+
 
     try {
 
-        statusMessage.style.display =
-            "block";
+        if (
+            TRIGGER_URL.includes(
+                "REPLACE-WITH-YOUR"
+            )
+        ) {
 
-        statusMessage.textContent =
-            "Loading latest monitor data...";
+            throw new Error(
+                "The Cloudflare Worker URL has not been configured yet."
+            );
+
+        }
 
 
         const response =
             await fetch(
-                CSV_URL + "?t=" + Date.now()
+                TRIGGER_URL,
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify({
+                        postcode: "NW9 0RY"
+                    })
+                }
             );
+
+
+        const data =
+            await response.json();
 
 
         if (!response.ok) {
 
             throw new Error(
-                `CSV returned HTTP ${response.status}`
+                data.error ||
+                `HTTP ${response.status}`
             );
 
         }
 
 
-        const text =
-            await response.text();
+        showMessage(
+            "O2 check started successfully. Playwright is now opening the O2 website, entering NW9 0RY and capturing the result. The dashboard will automatically refresh.",
+            "success"
+        );
 
 
-        const lines =
-            text.trim()
-                .split(/\r?\n/);
+        /*
+        Poll the CSV.
+
+        The GitHub Action normally takes
+        several seconds to complete.
+        */
+
+        waitForNewCheck();
 
 
-        if (lines.length <= 1) {
+    }
 
-            throw new Error(
-                "CSV contains no monitor records."
-            );
-
-        }
-
-
-        const headers =
-            parseCSV(lines[0]);
-
-
-        const rows =
-            lines
-                .slice(1)
-                .map(parseCSV);
-
-
-        const records =
-            rows.map(row => {
-
-                const obj = {};
-
-                headers.forEach(
-                    (header, i) => {
-
-                        obj[header] =
-                            row[i] || "";
-
-                    }
-                );
-
-                return obj;
-
-            });
-
-
-        const issues =
-            records.filter(
-                r =>
-                    r["O2 Status"] ===
-                    "ISSUE"
-            );
-
-
-        document.getElementById(
-            "total"
-        ).textContent =
-            records.length;
-
-
-        document.getElementById(
-            "issues"
-        ).textContent =
-            issues.length;
-
-
-        document.getElementById(
-            "rate"
-        ).textContent =
-            records.length
-                ? (
-                    issues.length /
-                    records.length *
-                    100
-                  ).toFixed(1) + "%"
-                : "0%";
-
-
-        const latest =
-            records[
-                records.length - 1
-            ];
-
-
-        const latestElement =
-            document.getElementById(
-                "latest"
-            );
-
-
-        latestElement.textContent =
-            latest["O2 Status"] ||
-            "UNKNOWN";
-
-
-        latestElement.className =
-            latest["O2 Status"] === "ISSUE"
-                ? "issue"
-                : latest["O2 Status"] === "OK"
-                    ? "ok"
-                    : "unknown";
-
-
-        document.getElementById(
-            "latestMessage"
-        ).textContent =
-            latest["O2 Message"] ||
-            "No O2 message recorded.";
-
-
-        const tbody =
-            document.getElementById(
-                "results"
-            );
-
-
-        tbody.innerHTML = "";
-
-
-        records
-            .slice(-25)
-            .reverse()
-            .forEach(record => {
-
-                const tr =
-                    document.createElement(
-                        "tr"
-                    );
-
-
-                const screenshot =
-                    record["Screenshot"];
-
-
-                const screenshotLink =
-                    screenshot
-                        ? `<a href="../${escapeHtml(
-                            screenshot
-                        )}" target="_blank">
-                            Evidence
-                           </a>`
-                        : "—";
-
-
-                tr.innerHTML = `
-
-                    <td>
-                        ${escapeHtml(
-                            record["Date & Time"]
-                        )}
-                    </td>
-
-                    <td>
-                        <strong>
-                            ${escapeHtml(
-                                record["O2 Status"]
-                            )}
-                        </strong>
-                    </td>
-
-                    <td>
-                        ${escapeHtml(
-                            record["Check Result"]
-                        )}
-                    </td>
-
-                    <td>
-                        ${screenshotLink}
-                    </td>
-
-                `;
-
-
-                tbody.appendChild(tr);
-
-            });
-
-
-        statusMessage.textContent =
-            `Monitor data loaded successfully: ${records.length} checks found.`;
-
-
-    } catch (error) {
+    catch (error) {
 
         console.error(
-            "O2 monitor error:",
+            "O2 trigger error:",
             error
         );
 
 
-        statusMessage.textContent =
-            "Unable to load monitor data: " +
-            error.message;
+        showMessage(
+            "Could not start the O2 check: " +
+            error.message,
+            "error"
+        );
 
 
-        document.getElementById(
-            "results"
-        ).innerHTML = `
+        button.disabled = false;
 
-            <tr>
-
-                <td colspan="4">
-
-                    Monitor data could not be loaded.
-
-                </td>
-
-            </tr>
-
-        `;
+        button.textContent =
+            "🔴 CHECK O2 NOW";
 
     }
 
 }
 
 
-function parseCSV(line) {
+/*
+========================================================
+WAIT FOR NEW CHECK
+========================================================
+*/
+
+async function waitForNewCheck() {
+
+    let attempts = 0;
+
+    const maximumAttempts = 30;
+
+
+    const interval =
+        setInterval(
+            async () => {
+
+                attempts++;
+
+
+                try {
+
+                    const response =
+                        await fetch(
+                            CSV_URL +
+                            "?t=" +
+                            Date.now(),
+                            {
+                                cache:
+                                    "no-store"
+                            }
+                        );
+
+
+                    if (!response.ok) {
+                        return;
+                    }
+
+
+                    const text =
+                        await response.text();
+
+
+                    const lines =
+                        text
+                            .trim()
+                            .split(/\r?\n/);
+
+
+                    /*
+                    If the CSV has grown,
+                    reload the dashboard.
+                    */
+
+                    if (
+                        lines.length > 1
+                    ) {
+
+                        clearInterval(
+                            interval
+                        );
+
+
+                        await loadData(
+                            true
+                        );
+
+
+                        const button =
+                            document.getElementById(
+                                "checkButton"
+                            );
+
+
+                        button.disabled =
+                            false;
+
+
+                        button.textContent =
+                            "🔴 CHECK O2 NOW";
+
+
+                        showMessage(
+                            "New O2 check recorded. The latest result and evidence screenshot are now displayed below.",
+                            "success"
+                        );
+
+                    }
+
+                }
+
+                catch {}
+
+
+
+                if (
+                    attempts >=
+                    maximumAttempts
+                ) {
+
+                    clearInterval(
+                        interval
+                    );
+
+
+                    const button =
+                        document.getElementById(
+                            "checkButton"
+                        );
+
+
+                    button.disabled =
+                        false;
+
+
+                    button.textContent =
+                        "🔴 CHECK O2 NOW";
+
+
+                    showMessage(
+                        "The O2 check was started, but the new result has not appeared yet. Open GitHub Actions to see the live run.",
+                        "warning"
+                    );
+
+                }
+
+            },
+            5000
+        );
+
+}
+
+
+/*
+========================================================
+REFRESH
+========================================================
+*/
+
+function refreshData() {
+
+    showMessage(
+        "Refreshing monitor data...",
+        "info"
+    );
+
+    loadData(true);
+
+}
+
+
+/*
+========================================================
+CSV PARSER
+========================================================
+*/
+
+function parseCSVLine(line) {
 
     const result = [];
 
@@ -670,7 +1110,9 @@ function parseCSV(line) {
             line[i];
 
 
-        if (char === '"') {
+        if (
+            char === '"'
+        ) {
 
             if (
                 quoted &&
@@ -681,7 +1123,9 @@ function parseCSV(line) {
 
                 i++;
 
-            } else {
+            }
+
+            else {
 
                 quoted =
                     !quoted;
@@ -722,9 +1166,422 @@ function parseCSV(line) {
 }
 
 
+/*
+========================================================
+LOAD DATA
+========================================================
+*/
+
+async function loadData(
+    cacheBust = false
+) {
+
+    try {
+
+        const url =
+            cacheBust
+
+                ? CSV_URL +
+                  "?t=" +
+                  Date.now()
+
+                : CSV_URL;
+
+
+        const response =
+            await fetch(
+                url,
+                {
+                    cache:
+                        "no-store"
+                }
+            );
+
+
+        if (!response.ok) {
+
+            throw new Error(
+                `CSV returned HTTP ${response.status}`
+            );
+
+        }
+
+
+        const text =
+            await response.text();
+
+
+        const lines =
+            text
+                .trim()
+                .split(/\r?\n/);
+
+
+        if (
+            lines.length <= 1
+        ) {
+
+            throw new Error(
+                "CSV contains no monitoring records."
+            );
+
+        }
+
+
+        const headers =
+            parseCSVLine(
+                lines[0]
+            );
+
+
+        const rows =
+            lines
+                .slice(1)
+                .map(parseCSVLine);
+
+
+        const records =
+            rows.map(
+                row => {
+
+                    const object = {};
+
+
+                    headers.forEach(
+                        (header, index) => {
+
+                            object[header] =
+                                row[index] ||
+                                "";
+
+                        }
+                    );
+
+
+                    return object;
+
+                }
+            );
+
+
+        /*
+        SUMMARY
+        */
+
+        const successful =
+            records.filter(
+                record =>
+                    record[
+                        "Check Result"
+                    ] === "SUCCESS"
+            );
+
+
+        const failed =
+            records.filter(
+                record =>
+                    record[
+                        "Check Result"
+                    ] === "FAILED"
+            );
+
+
+        const issues =
+            records.filter(
+                record =>
+                    record[
+                        "O2 Status"
+                    ] === "ISSUE" &&
+
+                    record[
+                        "Check Result"
+                    ] === "SUCCESS"
+            );
+
+
+        document.getElementById(
+            "total"
+        ).textContent =
+            records.length;
+
+
+        document.getElementById(
+            "successful"
+        ).textContent =
+            successful.length;
+
+
+        document.getElementById(
+            "failed"
+        ).textContent =
+            failed.length;
+
+
+        document.getElementById(
+            "issues"
+        ).textContent =
+            issues.length;
+
+
+        const issueRate =
+            successful.length
+
+                ? (
+                    issues.length /
+                    successful.length *
+                    100
+                  ).toFixed(1) + "%"
+
+                : "0%";
+
+
+        document.getElementById(
+            "rate"
+        ).textContent =
+            issueRate;
+
+
+        /*
+        LATEST
+        */
+
+        const latest =
+            records[
+                records.length - 1
+            ];
+
+
+        const latestElement =
+            document.getElementById(
+                "latest"
+            );
+
+
+        latestElement.textContent =
+            latest[
+                "O2 Status"
+            ] ||
+            "UNKNOWN";
+
+
+        latestElement.className =
+            "";
+
+
+        if (
+            latest[
+                "O2 Status"
+            ] === "ISSUE"
+        ) {
+
+            latestElement.classList.add(
+                "issue"
+            );
+
+        }
+
+        else if (
+            latest[
+                "O2 Status"
+            ] === "OK"
+        ) {
+
+            latestElement.classList.add(
+                "ok"
+            );
+
+        }
+
+        else {
+
+            latestElement.classList.add(
+                "unknown"
+            );
+
+        }
+
+
+        /*
+        SUMMARY TEXT
+        */
+
+        document.getElementById(
+            "summaryText"
+        ).textContent =
+            `Showing ${records.length} recorded checks. Latest check: ${latest["Date & Time"]}`;
+
+
+        /*
+        TABLE
+        */
+
+        const tbody =
+            document.getElementById(
+                "results"
+            );
+
+
+        tbody.innerHTML = "";
+
+
+        records
+            .slice()
+            .reverse()
+            .forEach(
+                record => {
+
+                    const tr =
+                        document.createElement(
+                            "tr"
+                        );
+
+
+                    let screenshotHTML =
+                        "—";
+
+
+                    if (
+                        record[
+                            "Screenshot"
+                        ]
+                    ) {
+
+                        const screenshot =
+                            "../" +
+                            record[
+                                "Screenshot"
+                            ];
+
+
+                        screenshotHTML =
+                            `<a
+                                href="${escapeAttribute(screenshot)}"
+                                target="_blank"
+                                rel="noopener">
+                                📸 Evidence
+                            </a>`;
+
+                    }
+
+
+                    let statusClass =
+                        "status-unknown";
+
+
+                    if (
+                        record[
+                            "O2 Status"
+                        ] === "ISSUE"
+                    ) {
+
+                        statusClass =
+                            "status-issue";
+
+                    }
+
+                    else if (
+                        record[
+                            "O2 Status"
+                        ] === "OK"
+                    ) {
+
+                        statusClass =
+                            "status-ok";
+
+                    }
+
+
+                    const resultClass =
+                        record[
+                            "Check Result"
+                        ] === "SUCCESS"
+
+                            ? "result-success"
+
+                            : "result-failed";
+
+
+                    tr.innerHTML = `
+
+                        <td>
+                            ${escapeHtml(
+                                record[
+                                    "Date & Time"
+                                ]
+                            )}
+                        </td>
+
+                        <td class="status ${statusClass}">
+                            ${escapeHtml(
+                                record[
+                                    "O2 Status"
+                                ]
+                            )}
+                        </td>
+
+                        <td class="${resultClass}">
+                            ${escapeHtml(
+                                record[
+                                    "Check Result"
+                                ]
+                            )}
+                        </td>
+
+                        <td>
+                            ${screenshotHTML}
+                        </td>
+
+                        <td>
+                            ${escapeHtml(
+                                record[
+                                    "Notes"
+                                ] || ""
+                            )}
+                        </td>
+
+                    `;
+
+
+                    tbody.appendChild(
+                        tr
+                    );
+
+                }
+            );
+
+
+    }
+
+    catch (error) {
+
+        console.error(
+            "O2 monitor error:",
+            error
+        );
+
+
+        showMessage(
+            "Unable to load monitor data: " +
+            error.message,
+            "error"
+        );
+
+    }
+
+}
+
+
+/*
+========================================================
+ESCAPE
+========================================================
+*/
+
 function escapeHtml(value) {
 
-    return String(value || "")
+    return String(
+        value || ""
+    )
 
         .replace(
             /&/g,
@@ -754,7 +1611,34 @@ function escapeHtml(value) {
 }
 
 
+function escapeAttribute(value) {
+
+    return escapeHtml(
+        value
+    );
+
+}
+
+
+/*
+========================================================
+INITIAL LOAD
+========================================================
+*/
+
 loadData();
+
+
+/*
+========================================================
+AUTO REFRESH
+========================================================
+*/
+
+setInterval(
+    () => loadData(true),
+    5 * 60 * 1000
+);
 
 </script>
 
