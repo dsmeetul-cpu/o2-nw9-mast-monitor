@@ -1,8 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-
 <meta charset="UTF-8">
 
 <meta name="viewport"
@@ -17,17 +15,11 @@
 }
 
 body {
-    font-family:
-        -apple-system,
-        BlinkMacSystemFont,
-        "Segoe UI",
-        Arial,
-        sans-serif;
-
-    background: #f3f5f7;
+    font-family: Arial, sans-serif;
+    background: #f4f6f8;
     margin: 0;
-    padding: 25px;
-    color: #1f2933;
+    padding: 30px;
+    color: #222;
 }
 
 .container {
@@ -35,31 +27,540 @@ body {
     margin: auto;
 }
 
-/* HEADER */
-
-.header {
-    background: white;
-    border-radius: 14px;
-    padding: 25px;
-    margin-bottom: 20px;
-
-    box-shadow:
-        0 3px 12px rgba(0,0,0,.08);
-}
-
 h1 {
-    margin: 0 0 6px 0;
-    font-size: 30px;
+    margin-bottom: 5px;
 }
 
 .subtitle {
-    color: #667085;
-    margin-bottom: 8px;
+    color: #666;
+    margin-bottom: 20px;
 }
 
-.reference {
-    color: #667085;
+.controls {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 25px;
+}
+
+button,
+.action-button {
+    border: 0;
+    border-radius: 8px;
+    padding: 13px 20px;
+    font-size: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.check-button {
+    background: #0070c9;
+    color: white;
+}
+
+.check-button:hover {
+    background: #005a9f;
+}
+
+.o2-button {
+    background: #111;
+    color: white;
+}
+
+.refresh-button {
+    background: #e5e7eb;
+    color: #222;
+}
+
+.cards {
+    display: grid;
+    grid-template-columns:
+        repeat(auto-fit, minmax(200px, 1fr));
+
+    gap: 15px;
+}
+
+.card {
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+
+.card h3 {
+    margin-top: 0;
+    color: #666;
     font-size: 14px;
+}
+
+.card strong {
+    font-size: 28px;
+}
+
+.issue {
+    color: #c62828;
+}
+
+.ok {
+    color: #2e7d32;
+}
+
+.unknown {
+    color: #777;
+}
+
+.info {
+    margin-top: 25px;
+    background: white;
+    padding: 20px;
+    border-radius: 10px;
+}
+
+.notice {
+    background: #fff8e1;
+    border-left: 5px solid #f0ad00;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 15px;
+}
+
+th,
+td {
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+    text-align: left;
+}
+
+th {
+    background: #eee;
+}
+
+a {
+    color: #0066cc;
+}
+
+.status {
+    font-weight: bold;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>O2 NW9 0RY Network Monitor</h1>
+
+<div class="subtitle">
+Automated evidence collection for O2 complaint
+<strong>C-1308267357</strong>
+</div>
+
+<div class="controls">
+
+<a
+    class="action-button check-button"
+    href="https://github.com/dsmeetul-cpu/o2-nw9-mast-monitor/actions/workflows/o2-monitor.yml"
+    target="_blank"
+    rel="noopener noreferrer">
+    ▶ CHECK NOW
+</a>
+
+<a
+    class="action-button o2-button"
+    href="https://status.o2.co.uk/"
+    target="_blank"
+    rel="noopener noreferrer">
+    Open O2 Status
+</a>
+
+<button
+    class="refresh-button"
+    onclick="loadData()">
+    ↻ Refresh Dashboard
+</button>
+
+</div>
+
+<div class="notice">
+
+<strong>CHECK NOW:</strong>
+opens the GitHub Actions monitor. Select
+<strong>Run workflow</strong> to perform a fresh O2 postcode check and create a timestamped screenshot.
+
+</div>
+
+<div class="cards">
+
+<div class="card">
+<h3>POSTCODE</h3>
+<strong>NW9 0RY</strong>
+</div>
+
+<div class="card">
+<h3>TOTAL CHECKS</h3>
+<strong id="total">—</strong>
+</div>
+
+<div class="card">
+<h3>ISSUE CHECKS</h3>
+<strong id="issues" class="issue">—</strong>
+</div>
+
+<div class="card">
+<h3>ISSUE RATE</h3>
+<strong id="rate">—</strong>
+</div>
+
+<div class="card">
+<h3>LATEST STATUS</h3>
+<strong id="latest">—</strong>
+</div>
+
+</div>
+
+<div class="info">
+
+<h2>Latest Checks</h2>
+
+<table>
+
+<thead>
+
+<tr>
+<th>Date & Time</th>
+<th>Status</th>
+<th>Result</th>
+<th>Screenshot</th>
+</tr>
+
+</thead>
+
+<tbody id="results">
+
+<tr>
+<td colspan="4">
+Loading monitor data...
+</td>
+</tr>
+
+</tbody>
+
+</table>
+
+</div>
+
+</div>
+
+<script>
+
+const CSV_URL =
+    "../data/o2-nw9-0ry-monitor.csv";
+
+async function loadData() {
+
+    try {
+
+        const response =
+            await fetch(
+                CSV_URL + "?t=" + Date.now()
+            );
+
+        if (!response.ok) {
+            throw new Error(
+                `CSV returned HTTP ${response.status}`
+            );
+        }
+
+        const text =
+            await response.text();
+
+        const lines =
+            text.trim().split(/\r?\n/);
+
+        if (lines.length <= 1) {
+            throw new Error(
+                "CSV contains no monitoring records."
+            );
+        }
+
+        const headers =
+            parseCSV(lines[0]);
+
+        const rows =
+            lines
+                .slice(1)
+                .map(parseCSV);
+
+        const records =
+            rows.map(row => {
+
+                const obj = {};
+
+                headers.forEach(
+                    (header, i) => {
+                        obj[header] =
+                            row[i] || "";
+                    }
+                );
+
+                return obj;
+
+            });
+
+        document.getElementById("total")
+            .textContent =
+            records.length;
+
+        const issues =
+            records.filter(
+                r =>
+                    r["O2 Status"] ===
+                    "ISSUE"
+            );
+
+        document.getElementById("issues")
+            .textContent =
+            issues.length;
+
+        document.getElementById("rate")
+            .textContent =
+            records.length
+                ? (
+                    issues.length /
+                    records.length *
+                    100
+                  ).toFixed(1) + "%"
+                : "0%";
+
+        const latest =
+            records[
+                records.length - 1
+            ];
+
+        const latestElement =
+            document.getElementById(
+                "latest"
+            );
+
+        latestElement.textContent =
+            latest["O2 Status"];
+
+        latestElement.className = "";
+
+        if (
+            latest["O2 Status"] ===
+            "ISSUE"
+        ) {
+            latestElement.classList.add(
+                "issue"
+            );
+        }
+
+        if (
+            latest["O2 Status"] ===
+            "OK"
+        ) {
+            latestElement.classList.add(
+                "ok"
+            );
+        }
+
+        if (
+            latest["O2 Status"] ===
+            "UNKNOWN"
+        ) {
+            latestElement.classList.add(
+                "unknown"
+            );
+        }
+
+        const tbody =
+            document.getElementById(
+                "results"
+            );
+
+        tbody.innerHTML = "";
+
+        records
+            .slice(-25)
+            .reverse()
+            .forEach(record => {
+
+                const tr =
+                    document.createElement(
+                        "tr"
+                    );
+
+                const screenshot =
+                    record["Screenshot"];
+
+                let screenshotHtml =
+                    "—";
+
+                if (screenshot) {
+
+                    screenshotHtml = `
+                        <a
+                          href="../${escapeHtml(screenshot)}"
+                          target="_blank">
+                          Evidence
+                        </a>
+                    `;
+                }
+
+                tr.innerHTML = `
+
+                    <td>
+                        ${escapeHtml(
+                            record["Date & Time"]
+                        )}
+                    </td>
+
+                    <td class="status">
+                        ${escapeHtml(
+                            record["O2 Status"]
+                        )}
+                    </td>
+
+                    <td>
+                        ${escapeHtml(
+                            record["Check Result"]
+                        )}
+                    </td>
+
+                    <td>
+                        ${screenshotHtml}
+                    </td>
+                `;
+
+                tbody.appendChild(tr);
+
+            });
+
+    } catch (error) {
+
+        console.error(
+            "O2 monitor error:",
+            error
+        );
+
+        document.getElementById(
+            "results"
+        ).innerHTML = `
+
+            <tr>
+
+                <td colspan="4">
+
+                    <strong>
+                    Unable to load monitor data.
+                    </strong>
+
+                    <br><br>
+
+                    ${escapeHtml(
+                        error.message
+                    )}
+
+                </td>
+
+            </tr>
+        `;
+    }
+}
+
+function parseCSV(line) {
+
+    const result = [];
+
+    let current = "";
+
+    let quoted = false;
+
+    for (
+        let i = 0;
+        i < line.length;
+        i++
+    ) {
+
+        const char = line[i];
+
+        if (char === '"') {
+
+            if (
+                quoted &&
+                line[i + 1] === '"'
+            ) {
+
+                current += '"';
+
+                i++;
+
+            } else {
+
+                quoted = !quoted;
+            }
+
+        } else if (
+            char === "," &&
+            !quoted
+        ) {
+
+            result.push(current);
+
+            current = "";
+
+        } else {
+
+            current += char;
+        }
+    }
+
+    result.push(current);
+
+    return result;
+}
+
+function escapeHtml(value) {
+
+    return String(value || "")
+        .replace(
+            /&/g,
+            "&amp;"
+        )
+        .replace(
+            /</g,
+            "&lt;"
+        )
+        .replace(
+            />/g,
+            "&gt;"
+        )
+        .replace(
+            /"/g,
+            "&quot;"
+        )
+        .replace(
+            /'/g,
+            "&#039;"
+        );
+}
+
+loadData();
+
+</script>
+
+</body>
+</html>    font-size: 14px;
 }
 
 /* ACTION BUTTONS */
